@@ -2,3 +2,4 @@ streamlit==1.62.0
 feedparser==6.0.14
 google-genai==2.4.0
 python-dotenv==1.2.2
+st-copy-to-clipboard==0.1.6
