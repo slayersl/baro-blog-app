@@ -6,7 +6,6 @@ from urllib.parse import quote_plus
 
 import streamlit as st
 import feedparser
-import pyperclip
 from dotenv import load_dotenv
 from google import genai
 from google.genai import errors as genai_errors
@@ -399,6 +398,35 @@ def inject_compact_style():
             border-top: 1px solid rgba(128, 128, 128, 0.25);
             margin: 0.1rem 0;
         }
+        /* 클라이언트 사이드 클립보드 복사 버튼(pyperclip 대체) - 기본 Streamlit 버튼과
+           비슷한 톤으로 맞춘 순수 HTML/CSS 버튼 */
+        .copy-btn, .copy-btn-compact {
+            display: inline-block;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid rgba(49, 51, 63, 0.2);
+            border-radius: 0.5rem;
+            background-color: transparent;
+            color: inherit;
+            font-family: inherit;
+        }
+        .copy-btn:hover, .copy-btn-compact:hover {
+            border-color: rgb(255, 75, 75);
+            color: rgb(255, 75, 75);
+        }
+        .copy-btn {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+        div[class*="st-key-headline_rows_"] .copy-btn-compact {
+            padding: 0.1rem 0.6rem;
+            font-size: 0.75rem;
+            height: 1.6rem;
+            line-height: 1.4;
+        }
         </style>
         """
     )
@@ -410,6 +438,39 @@ def clear_keyword(key_name):
 
 def set_keyword_value(key_name, value):
     st.session_state[key_name] = value.strip()
+
+
+def render_copy_button(text, key, label="복사하기", compact=False):
+    """pyperclip(서버 클립보드) 대신, 브라우저의 Clipboard API로 클라이언트 사이드에서
+    복사를 수행하는 순수 HTML/JS 버튼. Streamlit Cloud처럼 서버에 클립보드 장치가 없는
+    환경에서도 동작한다. 텍스트는 JS 문자열로 직접 조립하지 않고 HTML data 속성에
+    안전하게 이스케이프해 담아 따옴표/줄바꿈 등에 의한 깨짐을 방지한다."""
+    text = text or ""
+    css_class = "copy-btn-compact" if compact else "copy-btn"
+
+    if not text:
+        # st.button()은 st.form 내부에서 사용할 수 없으므로(submit 버튼이 아닌 위젯 금지),
+        # 비활성 상태도 항상 순수 HTML로만 그린다.
+        st.html(
+            f'<button type="button" class="{css_class}" disabled '
+            f'style="opacity:0.5;cursor:not-allowed;">{html.escape(label, quote=True)}</button>'
+        )
+        return
+
+    escaped_text = html.escape(text, quote=True)
+    escaped_label = html.escape(label, quote=True)
+    st.html(f'''
+        <button type="button" class="{css_class}" data-copy-text="{escaped_text}" data-label="{escaped_label}"
+            onclick="
+                navigator.clipboard.writeText(this.dataset.copyText).then(() => {{
+                    const el = this;
+                    const original = el.textContent;
+                    el.textContent = '복사 완료 ✅';
+                    setTimeout(() => {{ el.textContent = original; }}, 1500);
+                }});
+            "
+        >{escaped_label}</button>
+    ''', unsafe_allow_javascript=True)
 
 
 def select_and_trigger_write(keyword_key, value, trigger_key):
@@ -509,7 +570,6 @@ def render_keyword_and_draft_panel(
     write_button_label,
     spinner_text,
     draft_heading,
-    no_draft_warning,
 ):
     st.markdown("🎯 타겟 키워드 (직접 입력하거나 비워두면 AI가 자동 추출합니다)")
     # text_input은 Enter나 포커스 이탈 전에는 값이 서버로 커밋되지 않아, 입력 직후 바로
@@ -531,7 +591,11 @@ def render_keyword_and_draft_panel(
         with col_write:
             write_clicked = st.form_submit_button(write_button_label)
         with col_copy:
-            copy_clicked = st.form_submit_button("복사")
+            render_copy_button(
+                st.session_state.get(keyword_key, ""),
+                key=f"copy_kw_{id_prefix}",
+                label="복사",
+            )
         with col_clear:
             # text_input이 이미 이 run에서 인스턴스화된 뒤이므로, 스크립트 본문에서 직접
             # session_state[keyword_key]를 수정하면 StreamlitAPIException이 발생한다.
@@ -564,13 +628,6 @@ def render_keyword_and_draft_panel(
             except Exception as e:
                 st.error(str(e))
 
-    if copy_clicked:
-        if st.session_state[keyword_key]:
-            pyperclip.copy(st.session_state[keyword_key])
-            st.toast("복사 완료!", icon="✅")
-        else:
-            st.warning("복사할 키워드가 없습니다.")
-
     if st.session_state[expansion_key]:
         render_keyword_suggestions(st.session_state[expansion_key], keyword_key, id_prefix)
 
@@ -591,12 +648,11 @@ def render_keyword_and_draft_panel(
     with col1:
         st.subheader(draft_heading)
     with col2:
-        if st.button("전체 복사", key=f"copy_all_{id_prefix}"):
-            if st.session_state[draft_key]:
-                pyperclip.copy(st.session_state[draft_key])
-                st.toast("복사 완료!", icon="✅")
-            else:
-                st.warning(no_draft_warning)
+        render_copy_button(
+            st.session_state.get(draft_key, ""),
+            key=f"copy_all_{id_prefix}",
+            label="전체 복사",
+        )
     with col3:
         st.button(
             "초안 지우기",
@@ -641,9 +697,12 @@ def render_headline_list(headlines, tab_key):
             with col_text:
                 st.markdown(f"**{rank}.** {headline}")
             with col_copy:
-                if st.button("복사하기", key=f"copy_{tab_key}_{rank}"):
-                    pyperclip.copy(headline)
-                    st.toast("복사 완료!", icon="✅")
+                render_copy_button(
+                    headline,
+                    key=f"copy_{tab_key}_{rank}",
+                    label="복사하기",
+                    compact=True,
+                )
             with col_kw:
                 st.button(
                     "타겟키워드로 복사",
@@ -678,7 +737,6 @@ def render_headline_list(headlines, tab_key):
         write_button_label="키워드로 글쓰기",
         spinner_text="AI가 블로그 초안을 작성하고 있습니다...",
         draft_heading="블로그 초안",
-        no_draft_warning="먼저 '블로그 글쓰기' 버튼으로 초안을 생성해주세요.",
     )
 
 
@@ -710,7 +768,6 @@ def render_clinic_tab():
         write_button_label="한의원 키워드로 글쓰기",
         spinner_text="AI가 한의원 블로그 초안을 작성하고 있습니다...",
         draft_heading="한의원 블로그 초안",
-        no_draft_warning="먼저 '한의원 키워드로 글쓰기' 버튼으로 초안을 생성해주세요.",
     )
 
 
