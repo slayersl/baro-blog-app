@@ -59,6 +59,8 @@ SIMILARITY_THRESHOLD = 0.6
 TOP_N = 10
 CACHE_TTL_SECONDS = 600
 
+YOUTUBE_VIDEO_URL = "https://youtu.be/pjcieq4R-BM"
+
 GEMINI_MODEL_PRIMARY = "gemini-3.6-pro"
 GEMINI_MODEL_FALLBACK = "gemini-3.6-flash"
 
@@ -850,6 +852,9 @@ def main():
         else:
             st.caption("Gemini API 키가 설정되어 있습니다.")
             st.button("API 키 변경 및 초기화", on_click=reset_api_key)
+
+        with st.expander("▶ 안내 영상", expanded=False):
+            st.video(YOUTUBE_VIDEO_URL)
 
     if st.button("새로고침"):
         get_news_data.clear()
