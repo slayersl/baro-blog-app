@@ -280,6 +280,98 @@ CLINIC_PROMPT_TEMPLATE = f"""
 [강력 지시] 본문 전체 길이는 반드시 공백을 포함하여 1,700자 ~ 1,900자 사이로 정확히 맞춰서 작성해. 절대 2,000자를 넘기지 마.
 """
 
+# ---------------------------------------------------------------------------
+# 경험담 글쓰기 (네이버 홈판 노출형)
+# "광고비 없이 챗GPT로 블로그 홈판 노출하는 방법"(늘봄AI) 영상의 작업 흐름을 그대로 옮긴 모드.
+#   ① 공신력 있는 자료(유튜브 요약 등)를 참고자료로 붙여넣고 ② 나의 실제 경험을 가볍게 적은 뒤
+#   ③ 핵심 키워드를 정확히 5회, 서로 멀찍이 떨어뜨려 배치하고 ④ 다른 단어는 5회 미만으로 사용한
+#   가독성 중심의 정보성 포스팅을 만든다. 제목은 10개 후보 중 고르고, 대표 이미지는 글자 없는
+#   영어 프롬프트(Whisk 등 무료 이미지 AI용)로 받는다.
+# ---------------------------------------------------------------------------
+EXPERIENCE_KEYWORD_REPEAT = 5  # 핵심 키워드 목표 반복 횟수
+EXPERIENCE_OTHER_WORD_LIMIT = 5  # 다른 단어는 이 횟수 "미만"으로 사용
+
+EXPERIENCE_TOPIC_PROMPT_TEMPLATE = """당신은 네이버 블로그 건강 분야 콘텐츠 기획자입니다.
+아래는 최근 수집된 건강/의학 분야 실제 뉴스 헤드라인입니다.
+
+{headlines}
+
+이 흐름을 참고해, 일반인이 자신의 경험(가족 간병, 본인 증상, 검진 후기 등)을 곁들여 쓰기 좋고
+네이버에서 사람들이 많이 검색할 만한 건강 블로그 핵심 키워드 10개를 추천해 주세요.
+- 각 키워드는 2~4어절의 검색어 형태(예: 백내장 초기 증상, 백내장 수술 후 주의사항)로 작성하세요.
+- 출력은 반드시 마크다운 표 형식으로만 작성하세요. 컬럼: | 추천 핵심 키워드 | 어울리는 경험 소재 | 추천 이유 |
+"""
+
+EXPERIENCE_TITLE_PROMPT_TEMPLATE = """당신은 네이버 블로그 상위 노출과 메인(홈판) 노출 경험이 많은 블로그 코치입니다.
+아래 정보를 바탕으로 클릭하고 싶어지는 네이버 블로그 제목 후보 10개를 만들어 주세요.
+
+[핵심 키워드] {keyword}
+[나의 경험]
+{story}
+[참고 자료 요약]
+{reference}
+
+[제목 규칙]
+- 모든 제목에 핵심 키워드 '{keyword}'를 띄어쓰기까지 그대로, 가능하면 제목 앞부분에 넣으세요.
+- 나의 경험에서 나온 구체적인 숫자·대상(예: 84세 아버지, 4단계, 1시간)을 적극 활용해 '진짜 경험담'임이 드러나게 하세요.
+- 정보(예: 5가지, 주의사항, 시기)와 경험(예: 아버지의 실제 경험)이 한 제목 안에 함께 담기도록 하세요.
+- 과장·낚시성 표현(충격, 무조건, 100%)은 쓰지 마세요.
+- 가장 추천하는 제목을 1번에 두고 맨 앞에 ⭐ 를 붙이세요.
+
+[출력 형식] 설명 없이 아래처럼 번호 목록 10줄만 출력하세요.
+1. ⭐ 제목
+2. 제목
+...
+10. 제목
+"""
+
+EXPERIENCE_POST_PROMPT_TEMPLATE = """당신은 네이버 블로그에 건강 정보를 꾸준히 올리는 평범한 블로거입니다.
+제목이 '{title}'인 네이버 블로그 글을 공백 포함 약 {length}자로 써 주세요.
+가독성 중심의 정보성 포스팅으로 작성합니다.
+
+[나의 실제 경험] (아래 사실은 그대로 살리고, 없는 사실을 지어내지 마세요)
+{story}
+
+[참고 자료] (정보의 근거로만 활용하고, 문장을 그대로 베끼지 마세요)
+{reference}
+
+[핵심 키워드 배치 규칙] (가장 중요)
+- 핵심 키워드 '{keyword}'를 본문에 정확히 {repeat}번, 띄어쓰기까지 똑같이 사용하세요. 제목은 횟수에 포함하지 않습니다.
+- {repeat}번의 키워드는 서로 멀찍이 떨어뜨려 도입부·본문 앞쪽·중간·뒤쪽·마무리에 고르게 한 번씩 배치하세요. 한 문단에 두 번 넣지 마세요.
+- 핵심 키워드 외의 다른 단어(명사)는 각각 {other_limit}번 미만으로만 사용하세요. 같은 단어가 반복될 것 같으면 동의어나 다른 표현으로 바꾸세요.
+
+[글쓰기 규칙]
+- 도입부는 나의 경험으로 자연스럽게 시작하고, 정보 → 경험 → 정리 흐름으로 이어가세요.
+- 소제목은 짧게(10자 내외) 만들고 앞에 ✔️ 를 붙이세요. 마크다운 샵 기호(#)와 표(|)는 쓰지 마세요.
+- 한 문단은 2~3문장 이내로 짧게 끊고, 모바일에서 읽기 편하게 문단 사이를 한 줄 띄우세요.
+- 핵심 정보는 하이픈(-) 목록으로 정리하세요.
+- 말투는 이웃에게 이야기하듯 편안한 해요체로 쓰세요.
+- 의학적 내용은 단정하지 말고, 진단·치료는 반드시 전문의와 상담하라는 안내를 마무리에 한 문장 넣으세요. '완치', '특효', '100%' 같은 과장 표현은 쓰지 마세요.
+- 사진을 넣으면 좋은 위치에는 [사진: 어떤 사진인지] 형태로 표시하세요.
+
+[출력 템플릿] 아래 📌 항목과 순서를 그대로 지키세요.
+📌 **글제목:** {title}
+📌 **본문:**
+(본문)
+📌 **대표 이미지 프롬프트 (영문, 글자 없음):**
+(이 글에 어울리는 블로그 대표 이미지를 만드는 영어 프롬프트 1개. 이미지 안에 글자·숫자·로고가 절대 들어가지 않도록 "no text, no letters, no watermark"를 포함하고, 인물이 나오면 "a natural, friendly Korean person"으로 묘사하며, 맨 끝에 ", photorealistic, soft natural light, high detail --ar 1:1"을 붙이세요.)
+📌 **썸네일 문구 추천:** (대표 이미지 위에 직접 올릴 짧은 문구 2~3개)
+📌 **태그:** (네이버 블로그 태그 5~10개, #태그 형식으로 한 줄에)
+"""
+
+# 한국어 어절 끝에 붙는 대표적인 조사. 단어 반복 횟수를 셀 때 '수술은/수술을/수술'을 같은 단어로 묶는다.
+KOREAN_JOSA_SUFFIXES = sorted(
+    (
+        "에서는", "으로는", "에게는", "까지는", "에서", "으로", "에게", "께서", "까지", "부터",
+        "처럼", "보다", "이나", "이랑", "하고", "은", "는", "이", "가", "을", "를", "의", "에",
+        "로", "와", "과", "도", "만", "랑", "나",
+    ),
+    key=len,
+    reverse=True,
+)
+WORD_TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]+")
+NAVER_TEXT_LIMIT_NOTE = "네이버 블로그는 서식이 섞인 붙여넣기보다 직접 타이핑한 글을 더 자연스럽게 봅니다."
+
 
 def get_gemini_api_key():
     # 사이드바에서 직접 입력/초기화한 키를 항상 최우선으로 사용한다.
@@ -377,6 +469,117 @@ def generate_clinic_post(topic):
     text = call_gemini(prompt)
     # 주소/전화번호 등은 AI가 매번 다시 쓰게 하지 않고, 고정 푸터를 그대로 이어붙인다.
     return f"{text}\n\n{CLINIC_FOOTER_TEMPLATE}"
+
+
+def _or_none(text, placeholder="(없음)"):
+    text = (text or "").strip()
+    return text if text else placeholder
+
+
+def suggest_experience_topics(headlines):
+    headline_text = "\n".join(f"- {h}" for h in headlines) or "- (수집된 헤드라인 없음)"
+    return call_gemini(EXPERIENCE_TOPIC_PROMPT_TEMPLATE.format(headlines=headline_text))
+
+
+def generate_experience_titles(keyword, story, reference):
+    prompt = EXPERIENCE_TITLE_PROMPT_TEMPLATE.format(
+        keyword=keyword, story=_or_none(story), reference=_or_none(reference)
+    )
+    return call_gemini(prompt)
+
+
+def generate_experience_post(title, keyword, story, reference, length):
+    prompt = EXPERIENCE_POST_PROMPT_TEMPLATE.format(
+        title=title,
+        keyword=keyword,
+        story=_or_none(story),
+        reference=_or_none(reference),
+        length=length,
+        repeat=EXPERIENCE_KEYWORD_REPEAT,
+        other_limit=EXPERIENCE_OTHER_WORD_LIMIT,
+    )
+    return call_gemini(prompt)
+
+
+TITLE_LINE_RE = re.compile(r"^\s*\d{1,2}\s*[.)]\s*(.+?)\s*$")
+
+
+def parse_title_candidates(text):
+    titles = []
+    for line in (text or "").splitlines():
+        m = TITLE_LINE_RE.match(line)
+        if not m:
+            continue
+        title = m.group(1).replace("**", "").strip()
+        recommended = title.startswith("⭐")
+        title = title.lstrip("⭐").strip()
+        if title:
+            titles.append((title, recommended))
+    return titles
+
+
+def extract_section(text, label):
+    """'📌 **라벨:**' 다음부터 다음 📌 항목 전까지의 내용을 돌려준다(없으면 빈 문자열)."""
+    pattern = re.compile(
+        r"📌\s*\**\s*" + re.escape(label) + r"[^\n]*?:\**\s*(.*?)(?=\n\s*📌|\Z)", re.S
+    )
+    m = pattern.search(text or "")
+    return m.group(1).strip() if m else ""
+
+
+def to_plain_text(text):
+    """메모장을 거친 것처럼 마크다운 서식(볼드, 기울임, 헤더, 코드 표시)을 걷어낸다."""
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text or "")
+    text = re.sub(r"(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.M)
+    text = text.replace("`", "")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def strip_josa(token):
+    for suffix in KOREAN_JOSA_SUFFIXES:
+        if len(token) > len(suffix) + 1 and token.endswith(suffix):
+            return token[: -len(suffix)]
+    return token
+
+
+def analyze_keyword_usage(body, keyword):
+    """핵심 키워드 등장 횟수/위치와, 5회 이상 반복된 다른 단어를 계산한다(조사 제거 기반 근사치)."""
+    plain = to_plain_text(body)
+    total_len = max(len(plain), 1)
+    positions = [m.start() for m in re.finditer(re.escape(keyword), plain)] if keyword else []
+
+    # 서로 너무 가까이 붙은 키워드(본문 길이의 1/10 미만 간격)를 표시한다.
+    min_gap = total_len / 10
+    close_pairs = [
+        (i + 1, i + 2)
+        for i in range(len(positions) - 1)
+        if positions[i + 1] - positions[i] < min_gap
+    ]
+
+    # 핵심 키워드 자체는 빼고 센다. 키워드를 이루는 단어(예: '수술')가 키워드 밖에서
+    # 따로 5번 이상 반복되는 것도 과다 반복이므로 집계 대상에 남겨 둔다.
+    rest = plain.replace(keyword, " ") if keyword else plain
+    counts = {}
+    for raw in WORD_TOKEN_RE.findall(rest):
+        token = strip_josa(raw)
+        if len(token) < 2 or token.isdigit():
+            continue
+        counts[token] = counts.get(token, 0) + 1
+    overused = sorted(
+        ((w, c) for w, c in counts.items() if c >= EXPERIENCE_OTHER_WORD_LIMIT),
+        key=lambda x: -x[1],
+    )
+
+    return {
+        "char_count": len(plain),
+        "positions": positions,
+        "relative_positions": [round(p / total_len * 100) for p in positions],
+        "close_pairs": close_pairs,
+        "overused": overused,
+    }
 
 
 TAG_RE = re.compile(r"<[^>]+>")
@@ -802,6 +1005,210 @@ def render_clinic_tab():
     )
 
 
+def set_experience_title(title):
+    st.session_state["exp_title"] = title
+
+
+def render_keyword_report(body, keyword):
+    report = analyze_keyword_usage(body, keyword)
+    count = len(report["positions"])
+
+    with st.container(border=True):
+        st.markdown("**🔎 키워드 배치 점검** (서식 제거 후 본문 기준)")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("본문 글자수(공백 포함)", f"{report['char_count']:,}자")
+        c2.metric(
+            f"'{keyword}' 사용 횟수",
+            f"{count}회",
+            delta=f"{count - EXPERIENCE_KEYWORD_REPEAT:+d} (목표 {EXPERIENCE_KEYWORD_REPEAT}회)",
+            delta_color="off",
+        )
+        c3.metric(f"{EXPERIENCE_OTHER_WORD_LIMIT}회 이상 반복된 단어", f"{len(report['overused'])}개")
+
+        if count == EXPERIENCE_KEYWORD_REPEAT:
+            st.success(f"핵심 키워드가 목표대로 {EXPERIENCE_KEYWORD_REPEAT}회 들어갔어요.")
+        else:
+            st.warning(
+                f"핵심 키워드가 {count}회 들어갔어요. 옮겨 적으면서 {EXPERIENCE_KEYWORD_REPEAT}회로 맞춰 주세요."
+            )
+
+        if report["relative_positions"]:
+            st.caption(
+                "키워드 위치(본문 처음=0%, 끝=100%): "
+                + " → ".join(f"{p}%" for p in report["relative_positions"])
+            )
+        if report["close_pairs"]:
+            pairs = ", ".join(f"{a}번째·{b}번째" for a, b in report["close_pairs"])
+            st.warning(f"서로 너무 가까이 붙은 키워드가 있어요: {pairs}. 하나를 다른 문단으로 옮겨 주세요.")
+
+        if report["overused"]:
+            words = ", ".join(f"{w}({c}회)" for w, c in report["overused"])
+            st.warning(
+                f"{EXPERIENCE_OTHER_WORD_LIMIT}회 이상 반복된 단어: {words} — 일부를 다른 표현으로 바꿔 주세요."
+            )
+        st.caption("※ 조사를 단순 제거해 센 근사치예요. 최종 확인은 네이버 글쓰기 화면에서 해 주세요.")
+
+
+def render_experience_tab():
+    for key, default in (
+        ("exp_keyword", ""),
+        ("exp_story", ""),
+        ("exp_reference", ""),
+        ("exp_length", 1500),
+        ("exp_topics", ""),
+        ("exp_titles", ""),
+        ("exp_title", ""),
+        ("exp_draft", ""),
+        ("exp_draft_keyword", ""),
+    ):
+        if key not in st.session_state:
+            st.session_state[key] = default
+
+    st.caption(
+        "나의 실제 경험 + 공신력 있는 참고자료로, 핵심 키워드를 5회 멀찍이 배치한 "
+        "네이버 블로그(홈판 노출형) 정보성 글을 만듭니다. "
+        "AI 글을 그대로 올리기보다 내 말투로 다듬어 직접 옮겨 적는 것을 전제로 합니다."
+    )
+
+    # 0단계: 주제가 막막할 때 — 실제 건강 뉴스 흐름에서 키워드 추천
+    with st.expander("💡 주제가 막막하다면: 요즘 건강 분야 검색 키워드 추천받기"):
+        st.caption("실시간 '건강/헬스' 뉴스 헤드라인을 바탕으로 경험담을 붙이기 좋은 키워드를 추천합니다.")
+        if st.button("추천 키워드 받기", key="exp_topic_btn"):
+            try:
+                with st.spinner("최근 건강 뉴스 흐름을 분석하고 있습니다..."):
+                    news = get_news_data("건강/헬스")
+                    heads = [h for h, _ in news["headlines"]]
+                    st.session_state["exp_topics"] = suggest_experience_topics(heads)
+            except Exception as e:
+                st.error(str(e))
+        if st.session_state["exp_topics"]:
+            _, header, rows = parse_markdown_table(st.session_state["exp_topics"])
+            if not rows:
+                st.markdown(st.session_state["exp_topics"])
+            for i, row in enumerate(rows):
+                cols = st.columns([2.5, 3, 3, 1.2], gap="small")
+                for col, cell in zip(cols[:3], row[:3]):
+                    col.markdown(cell)
+                cols[3].button(
+                    "키워드로",
+                    key=f"exp_topic_pick_{i}",
+                    on_click=set_keyword_value,
+                    args=("exp_keyword", re.sub(r"\*\*", "", row[0]) if row else ""),
+                )
+
+    # 1단계: 재료 입력
+    st.markdown("#### ① 재료 입력")
+    st.text_input(
+        "🎯 핵심 키워드 (본문에 정확히 5회, 서로 멀찍이 배치됩니다)",
+        key="exp_keyword",
+        placeholder="예: 백내장 수술 후 주의사항",
+    )
+    st.text_area(
+        "✍️ 나의 경험 (가볍게, 사실 위주로 적어 주세요)",
+        key="exp_story",
+        height=140,
+        placeholder=(
+            "예: 친정아버지께서 만 84세인데 그저께 부산 대학병원에서 백내장 수술을 하셨다. "
+            "4단계로 매우 좋지 않은 상태였으나 전신마취하에 1시간 만에 수술을 잘 마치고 지금은 회복 중이다."
+        ),
+    )
+    st.text_area(
+        "📚 참고 자료 (선택) — 공신력 있는 유튜브 채널 영상을 Gemini 등으로 요약한 내용, 기사 등",
+        key="exp_reference",
+        height=140,
+        placeholder="정확한 건강 정보를 위해 병원·전문의 채널의 내용을 요약해 붙여넣으면 좋아요.",
+    )
+    st.number_input(
+        "본문 분량(공백 포함 글자수)", min_value=800, max_value=3000, step=100, key="exp_length"
+    )
+
+    # 2단계: 제목 후보
+    st.markdown("#### ② 제목 고르기")
+    if st.button("제목 후보 10개 만들기", key="exp_title_btn"):
+        keyword = st.session_state["exp_keyword"].strip()
+        if not keyword:
+            st.warning("먼저 핵심 키워드를 입력해 주세요.")
+        else:
+            try:
+                with st.spinner("클릭을 부르는 제목 후보를 만들고 있습니다..."):
+                    st.session_state["exp_titles"] = generate_experience_titles(
+                        keyword, st.session_state["exp_story"], st.session_state["exp_reference"]
+                    )
+            except Exception as e:
+                st.error(str(e))
+
+    candidates = parse_title_candidates(st.session_state["exp_titles"])
+    if st.session_state["exp_titles"] and not candidates:
+        st.markdown(st.session_state["exp_titles"])
+    for i, (title, recommended) in enumerate(candidates):
+        col_t, col_b = st.columns([8.5, 1.5], gap="small")
+        col_t.markdown(f"{'⭐ ' if recommended else ''}{title}")
+        col_b.button("선택", key=f"exp_pick_title_{i}", on_click=set_experience_title, args=(title,))
+
+    st.text_input(
+        "선택한 제목 (후보 두 개를 조합하거나 직접 고쳐 써도 됩니다)",
+        key="exp_title",
+    )
+
+    # 3단계: 본문
+    st.markdown("#### ③ 본문 + 대표 이미지 프롬프트 만들기")
+    col_w, col_c = st.columns([8.5, 1.5], gap="small")
+    with col_w:
+        write_clicked = st.button("블로그 글 쓰기", key="exp_write_btn", type="primary")
+    with col_c:
+        st.button("초안 지우기", key="exp_clear_btn", on_click=clear_keyword, args=("exp_draft",))
+
+    if write_clicked:
+        keyword = st.session_state["exp_keyword"].strip()
+        title = st.session_state["exp_title"].strip()
+        if not keyword or not title:
+            st.warning("핵심 키워드와 제목을 모두 입력(선택)해 주세요.")
+        elif not st.session_state["exp_story"].strip():
+            st.warning("나의 경험을 한두 줄이라도 적어 주세요. 홈판 노출형 글의 핵심은 '진짜 경험'입니다.")
+        else:
+            try:
+                with st.spinner("가독성 중심의 정보성 포스팅을 작성하고 있습니다..."):
+                    st.session_state["exp_draft"] = generate_experience_post(
+                        title,
+                        keyword,
+                        st.session_state["exp_story"],
+                        st.session_state["exp_reference"],
+                        int(st.session_state["exp_length"]),
+                    )
+                    st.session_state["exp_draft_keyword"] = keyword
+            except Exception as e:
+                st.error(str(e))
+
+    draft = st.session_state["exp_draft"]
+    if not draft:
+        return
+
+    body = extract_section(draft, "본문") or draft
+    render_keyword_report(body, st.session_state["exp_draft_keyword"])
+
+    tab_full, tab_plain, tab_image = st.tabs(["전체 초안", "서식 없는 본문", "대표 이미지 프롬프트"])
+    with tab_full:
+        st.code(draft, language="markdown", height=700, wrap_lines=True)
+    with tab_plain:
+        st.caption("메모장을 거친 것처럼 **, # 같은 서식을 걷어낸 본문입니다. 일부 문단만 옮길 때 사용하세요.")
+        st.code(to_plain_text(body), language=None, height=600, wrap_lines=True)
+    with tab_image:
+        image_prompt = extract_section(draft, "대표 이미지 프롬프트")
+        st.caption("글자 없는 대표 이미지용 영어 프롬프트입니다. Google Whisk 등 무료 이미지 AI에 붙여넣으세요.")
+        st.code(image_prompt or "(프롬프트를 찾지 못했어요. 전체 초안 탭을 확인해 주세요.)", language=None, wrap_lines=True)
+        thumb = extract_section(draft, "썸네일 문구 추천")
+        if thumb:
+            st.markdown(f"**썸네일 문구 추천**\n\n{thumb}")
+
+    st.info(
+        "✅ 올리기 전 체크\n"
+        f"- {NAVER_TEXT_LIMIT_NOTE} 가능하면 내 말투로 고쳐 가며 직접 타이핑하세요.\n"
+        "- 분량 때문에 일부를 붙여넣을 때는 2~3줄씩, 반드시 '서식 없는 본문' 탭(또는 메모장)을 거쳐 붙여넣으세요.\n"
+        "- 건강 정보는 공신력 있는 출처로 한 번 더 사실 확인하세요.\n"
+        "- 클릭은 제목만큼 대표 사진이 좌우합니다. 대표 이미지에 썸네일 문구를 직접 얹어 보세요."
+    )
+
+
 GUIDELINE_TEXT = """
 **[공통 요건]**
 - 본문 분량: 공백 포함 **1,700~1,900자** (2,000자 절대 초과 금지)
@@ -825,6 +1232,14 @@ GUIDELINE_TEXT = """
 - 객관적 원리·한의학적 접근·생활 관리법 중심의 차분한 정보 전달
 - 본문은 일상 관리법까지만 작성하고, AI가 마무리 인사말이나 '원장님의 한마디'를 자체 생성하지 않음
 - 글 맨 끝에 주소·주차 안내·홈페이지({homepage})·네이버 지도·전화번호가 담긴 **고정 푸터**를 시스템이 자동 첨부
+
+**[경험담 글쓰기(네이버 홈판형) 요건]**
+- 재료: 나의 실제 경험(필수) + 공신력 있는 참고자료 요약(선택) — 경험의 사실은 그대로, 없는 사실은 만들지 않음
+- 제목: 핵심 키워드를 포함한 후보 10개 중 선택(⭐ 최우선 추천), 정보 + 경험이 함께 드러나게
+- 핵심 키워드는 본문에 **정확히 5회**, 도입·앞·중간·뒤·마무리에 **멀찍이** 분산 / 다른 단어는 **5회 미만**
+- 짧은 소제목(✔️), 2~3문장 짧은 문단, 하이픈 목록 중심의 **가독성 위주 정보성 포스팅**
+- 대표 이미지는 **글자 없는** 영어 프롬프트로 생성(Whisk 등), 썸네일 문구는 별도 추천
+- 생성 후 키워드 횟수·간격·반복 단어를 자동 점검하고, 서식 제거 본문을 제공(직접 타이핑 권장)
 """.format(homepage=CLINIC_HOMEPAGE)
 
 
@@ -856,7 +1271,7 @@ def main():
 
     render_guideline_panel()
 
-    tab_labels = CATEGORIES + ["한의원 글쓰기"]
+    tab_labels = CATEGORIES + ["한의원 글쓰기", "경험담 글쓰기(홈판)"]
     tabs = st.tabs(tab_labels)
     for tab, category in zip(tabs, CATEGORIES):
         with tab:
@@ -865,8 +1280,11 @@ def main():
             st.caption(f"마지막 업데이트 시간: {data['updated_at']}")
             render_headline_list(data["headlines"], tab_key=category)
 
-    with tabs[-1]:
+    with tabs[-2]:
         render_clinic_tab()
+
+    with tabs[-1]:
+        render_experience_tab()
 
 
 if __name__ == "__main__":
