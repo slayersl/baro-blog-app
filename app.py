@@ -143,7 +143,7 @@ BLOG_PROMPT_TEMPLATE = """
 5. 전문가의 시선: 글의 마무리인 📌 나만의 시선(인사이트)에는 해당 주제나 향후 전망에 대해 통찰력 있는 분석을 덧붙여 신뢰도를 높이세요.
 
 [필수 조건]
-- 본문 내에 핵심 키워드를 3~5회 자연스럽게 반복하세요.
+- 본문 내에 핵심 키워드를 2~4회 정도 자연스럽게 사용하세요. 횟수를 억지로 채우려고 같은 문구를 반복하지 말고, 동의어·풀어쓴 표현을 섞어 사람이 쓴 글처럼 읽히게 하세요.
 - {keyword_instruction}
 - 주의사항: 타겟 키워드가 긴 문장이나 특수기호가 포함된 기사 헤드라인일 경우, 본문에 그 원문을 토씨 하나 틀리지 않고 기계적으로 반복 삽입하지 마세요. 핵심 명사 단어(예: 암 백신, 상용화 등) 위주로 자연스럽게 분리 및 변형하여 문맥에 부드럽게 녹여내고, 읽었을 때 로봇이 쓴 것 같은 어색한 문장이 절대 발생하지 않도록 '자연스러운 한국어 문맥'을 최우선으로 작성하세요.
 - 절대 아래의 [출력 템플릿] 중 단 하나의 항목도 누락해서는 안 됩니다. 명시된 기호(📌)와 순서를 정확히 지켜서 출력하세요.
@@ -159,7 +159,9 @@ BLOG_PROMPT_TEMPLATE = """
 - 각 이미지마다 아래 3가지 항목을 세트로 묶어 깔끔하게 출력하세요.
   🎨 영문 프롬프트: (이미지 생성 AI에 그대로 복사해 넣을 수 있는 구체적인 영어 묘사)
   📝 이미지 설명: (어떤 의도로 기획된 이미지인지 한글로 짧게 설명)
-  🖼️ 대체 텍스트(Alt text): (SEO 최적화를 위해 타겟 키워드를 자연스럽게 1회 포함한 한글 묘사 텍스트)
+  🖼️ 대체 텍스트(Alt text): (시각장애인에게 읽어주듯 이미지에 실제로 보이는 장면(누가·무엇을·어디서)을 묘사한 한글 문장. 키워드는 장면 묘사에 자연스럽게 어울릴 때만 쓰고, 글제목·키워드와 똑같은 문구로 쓰지 말 것)
+  📁 파일명: (이미지의 실제 장면을 묘사하는 영문 소문자+하이픈 파일명. 예: doctor-explaining-chart-to-patient.jpg)
+- 과잉 최적화 금지(구글 색인 누락 방지): 이미지 파일명·대체 텍스트·글제목·키워드에 똑같은 키워드 문구를 기계적으로 반복하지 마세요. 파일명은 퍼머링크나 키워드 슬러그를 그대로 쓰지 말고, 두 이미지의 대체 텍스트와 파일명은 서로 다른 장면 묘사여야 합니다. 이런 반복은 사람이 아닌 프로그램이 발행한 글이라는 신호로 읽힙니다.
 - 화풍(Style): 만화, 벡터 아트, 일러스트레이션 스타일은 절대 사용하지 마세요. 반드시 '고품질 실사 사진(Photorealistic)' 느낌으로 작성하세요.
 - 내용의 연관성 및 안전한 실사화(가장 중요): 글의 핵심 주제를 직접적으로 보여주는 실사 사진으로 기획하세요. 단, 질병(매독 등)이나 혐오감을 줄 수 있는 의료 주제의 경우 환부나 징그러운 묘사 대신 "깨끗하고 전문적인 병원 진료실, 현미경을 보는 연구원, 차트를 들고 있는 의사, 깔끔한 의료 기기 매크로 샷" 등 신뢰감을 주는 전문적인 의료 환경의 실사 사진으로 대체하세요. 금융/투자 주제의 경우 "현대적인 빌딩의 유리창, 깔끔한 사무실 데스크 위 패드와 차트, 정장 차림으로 악수하는 모습" 등 현실적이고 비즈니스적인 환경으로 묘사하세요.
 - 인물이 등장하는 경우, 서양인 외형이나 왜곡된 얼굴이 절대 나오지 않도록 반드시 "a photorealistic photo of an attractive and friendly modern Korean man/woman with natural, clean facial features" 같은 문구를 영문 프롬프트에 포함하세요.
@@ -184,11 +186,13 @@ BLOG_PROMPT_TEMPLATE = """
 📌 **이미지 1 (도입부):**
 🎨 영문 프롬프트: (검색설명·핵심 주제를 시각화. 민감 주제는 은유적 컨셉으로 표현. 맨 끝에 화풍 고정 문구 포함)
 📝 이미지 설명: (기획 의도를 한글로 짧게 설명)
-🖼️ 대체 텍스트(Alt text): (타겟 키워드를 자연스럽게 1회 포함한 한글 묘사)
+🖼️ 대체 텍스트(Alt text): (이미지에 실제로 보이는 장면을 묘사한 한글 문장. 글제목·키워드를 그대로 복사하지 말 것)
+📁 파일명: (실제 장면을 묘사하는 영문 소문자+하이픈 파일명. 키워드 슬러그·퍼머링크와 다르게)
 📌 **이미지 2 (결론부):**
 🎨 영문 프롬프트: (나만의 시선에 담긴 향후 전망·해결책을 시각화. 민감 주제는 은유적 컨셉으로 표현. 맨 끝에 화풍 고정 문구 포함)
 📝 이미지 설명: (기획 의도를 한글로 짧게 설명)
-🖼️ 대체 텍스트(Alt text): (타겟 키워드를 자연스럽게 1회 포함한 한글 묘사)
+🖼️ 대체 텍스트(Alt text): (이미지에 실제로 보이는 장면을 묘사한 한글 문장. 글제목·키워드를 그대로 복사하지 말 것)
+📁 파일명: (실제 장면을 묘사하는 영문 소문자+하이픈 파일명. 키워드 슬러그·퍼머링크와 다르게)
 📌 **라벨:** (글의 핵심 주제 키워드 3~5개를 쉼표(,)로 구분하여 출력. 예: 암 백신, 바이오테크, 임상결과)
 📌 **퍼머링크:** (구글 검색 최적화(SEO)를 위한 영어 URL 슬러그. 핵심 주제를 띄어쓰기 없이 영문 소문자와 하이픈(-)만 사용하여 작성. 예: cancer-vaccine-final-test-success)
 
@@ -229,7 +233,7 @@ CLINIC_PROMPT_TEMPLATE = f"""
 5. 전문가의 시선: 관리법 체크리스트 뒤, 본문이 끝나기 직전 마지막 문단에 이 증상/주제에 대한 향후 관리 방향이나 통찰력 있는 분석을 자연스럽게 덧붙여 신뢰도를 높이세요. (단, 이는 본문의 마지막 문단일 뿐이며 별도의 마무리 인사말이나 '원장님의 한마디'가 아닙니다.)
 
 [필수 조건]
-- 본문 내에 핵심 키워드를 3~5회 자연스럽게 반복하세요.
+- 본문 내에 핵심 키워드를 2~4회 정도 자연스럽게 사용하세요. 횟수를 억지로 채우려고 같은 문구를 반복하지 말고, 동의어·풀어쓴 표현을 섞어 사람이 쓴 글처럼 읽히게 하세요.
 - 주의사항: 타겟 키워드가 긴 문장이나 특수기호가 포함된 기사 헤드라인일 경우, 본문에 그 원문을 토씨 하나 틀리지 않고 기계적으로 반복 삽입하지 마세요. 핵심 명사 단어(예: 암 백신, 상용화 등) 위주로 자연스럽게 분리 및 변형하여 문맥에 부드럽게 녹여내고, 읽었을 때 로봇이 쓴 것 같은 어색한 문장이 절대 발생하지 않도록 '자연스러운 한국어 문맥'을 최우선으로 작성하세요.
 - 주의: 본문 마지막 문단(전문가의 시선)까지만 작성하고, 절대 별도의 마무리 인사말이나 '원장님의 한마디'를 자체적으로 생성하지 마세요. 본문 작성이 끝나면 즉시 '📌 함께 찾아보면 좋은 키워드' 항목으로 넘어가세요.
 - 절대 아래의 [출력 템플릿] 중 단 하나의 항목도 누락해서는 안 됩니다. 명시된 기호(📌)와 순서를 정확히 지켜서 출력하세요.
@@ -245,7 +249,9 @@ CLINIC_PROMPT_TEMPLATE = f"""
 - 각 이미지마다 아래 3가지 항목을 세트로 묶어 깔끔하게 출력하세요.
   🎨 영문 프롬프트: (이미지 생성 AI에 그대로 복사해 넣을 수 있는 구체적인 영어 묘사)
   📝 이미지 설명: (어떤 의도로 기획된 이미지인지 한글로 짧게 설명)
-  🖼️ 대체 텍스트(Alt text): (SEO 최적화를 위해 타겟 키워드를 자연스럽게 1회 포함한 한글 묘사 텍스트)
+  🖼️ 대체 텍스트(Alt text): (시각장애인에게 읽어주듯 이미지에 실제로 보이는 장면(누가·무엇을·어디서)을 묘사한 한글 문장. 키워드는 장면 묘사에 자연스럽게 어울릴 때만 쓰고, 글제목·키워드와 똑같은 문구로 쓰지 말 것)
+  📁 파일명: (이미지의 실제 장면을 묘사하는 영문 소문자+하이픈 파일명. 예: doctor-explaining-chart-to-patient.jpg)
+- 과잉 최적화 금지(구글 색인 누락 방지): 이미지 파일명·대체 텍스트·글제목·키워드에 똑같은 키워드 문구를 기계적으로 반복하지 마세요. 파일명은 퍼머링크나 키워드 슬러그를 그대로 쓰지 말고, 두 이미지의 대체 텍스트와 파일명은 서로 다른 장면 묘사여야 합니다. 이런 반복은 사람이 아닌 프로그램이 발행한 글이라는 신호로 읽힙니다.
 - 화풍(Style): 만화, 벡터 아트, 일러스트레이션 스타일은 절대 사용하지 마세요. 반드시 '고품질 실사 사진(Photorealistic)' 느낌으로 작성하세요.
 - 내용의 연관성 및 안전한 실사화(가장 중요): 글의 핵심 증상/주제를 직접적으로 보여주는 실사 사진으로 기획하세요. 단, 통증 부위 노출이나 시술 장면 등 혐오감을 줄 수 있는 직접 묘사 대신 "깨끗하고 전문적인 한의원 진료실, 환자에게 차트를 설명하는 한의사, 정갈하게 정돈된 침 치료 도구 매크로 샷, 바른 자세로 스트레칭하는 모습" 등 신뢰감을 주는 전문적인 의료 환경의 실사 사진으로 대체하세요.
 - 인물이 등장하는 경우, 서양인 외형이나 왜곡된 얼굴이 절대 나오지 않도록 반드시 "a photorealistic photo of an attractive and friendly modern Korean man/woman with natural, clean facial features" 같은 문구를 영문 프롬프트에 포함하세요.
@@ -269,11 +275,13 @@ CLINIC_PROMPT_TEMPLATE = f"""
 📌 **이미지 1 (도입부):**
 🎨 영문 프롬프트: (검색설명·핵심 증상을 시각화. 민감 주제는 은유적 컨셉으로 표현. 맨 끝에 화풍 고정 문구 포함)
 📝 이미지 설명: (기획 의도를 한글로 짧게 설명)
-🖼️ 대체 텍스트(Alt text): (타겟 키워드를 자연스럽게 1회 포함한 한글 묘사)
+🖼️ 대체 텍스트(Alt text): (이미지에 실제로 보이는 장면을 묘사한 한글 문장. 글제목·키워드를 그대로 복사하지 말 것)
+📁 파일명: (실제 장면을 묘사하는 영문 소문자+하이픈 파일명. 키워드 슬러그·퍼머링크와 다르게)
 📌 **이미지 2 (결론부):**
 🎨 영문 프롬프트: (본문 마지막 문단의 관리 방향·전망을 시각화. 민감 주제는 은유적 컨셉으로 표현. 맨 끝에 화풍 고정 문구 포함)
 📝 이미지 설명: (기획 의도를 한글로 짧게 설명)
-🖼️ 대체 텍스트(Alt text): (타겟 키워드를 자연스럽게 1회 포함한 한글 묘사)
+🖼️ 대체 텍스트(Alt text): (이미지에 실제로 보이는 장면을 묘사한 한글 문장. 글제목·키워드를 그대로 복사하지 말 것)
+📁 파일명: (실제 장면을 묘사하는 영문 소문자+하이픈 파일명. 키워드 슬러그·퍼머링크와 다르게)
 📌 **라벨:** (글의 핵심 주제 키워드 3~5개를 쉼표(,)로 구분하여 출력. 예: 암 백신, 바이오테크, 임상결과)
 📌 **퍼머링크:** (구글 검색 최적화(SEO)를 위한 영어 URL 슬러그. 핵심 주제를 띄어쓰기 없이 영문 소문자와 하이픈(-)만 사용하여 작성. 예: cancer-vaccine-final-test-success)
 
@@ -377,6 +385,258 @@ def generate_clinic_post(topic):
     text = call_gemini(prompt)
     # 주소/전화번호 등은 AI가 매번 다시 쓰게 하지 않고, 고정 푸터를 그대로 이어붙인다.
     return f"{text}\n\n{CLINIC_FOOTER_TEMPLATE}"
+
+
+# ---------------------------------------------------------------------------
+# 발행 전 검수 도구
+# 구글 봇은 화면에 보이는 글자가 아니라 페이지 소스(HTML)를 읽는다. 크롤링/자동화
+# 프로그램으로 붙여넣은 글은 <h2 class="..." style="..." data-...>처럼 사람이 직접
+# 쓰면 생길 수 없는 꼬리표가 남고, 이미지 파일명·대체 텍스트·제목에 같은 키워드가
+# 기계적으로 반복되어 "프로그램이 발행한 글"로 판단되기 쉽다. 아래 도구는
+# (1) 속성이 하나도 없는 깨끗한 HTML을 만들어 주고, (2) 그런 기계적 흔적을 찾아
+# 경고해, 사람이 직접 검수한 뒤 발행하도록 돕는다.
+# ---------------------------------------------------------------------------
+
+SECTION_RE = re.compile(r"^📌\s*\*\*(.+?)\s*:?\s*\*\*\s*:?\s*(.*)$")
+IMAGE_SECTION_RE = re.compile(r"^이미지\s*\d")
+ALT_RE = re.compile(r"^🖼️?\s*대체\s*텍스트[^:：]*[:：]\s*(.*)$")
+FILENAME_RE = re.compile(r"^📁\s*파일명\s*[:：]\s*(.*)$")
+BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+URL_RE = re.compile(r"(https?://[^\s<]+)")
+LIST_ITEM_RE = re.compile(r"^(?:[-*•·]|\d+[.)])\s+(.*)$")
+HTML_BODY_SECTIONS = ("본문", "나만의 시선")
+BODY_MIN_CHARS = 1700
+BODY_MAX_CHARS = 1900
+KEYWORD_REPEAT_LIMIT = 6
+
+
+def parse_draft_sections(draft):
+    """📌 **항목:** 형식의 초안을 {항목명: 내용} 딕셔너리로 나눈다.
+
+    이미지 항목은 images 리스트에 따로 모으고, 한의원 고정 푸터(--- 아래)는
+    footer로 분리한다.
+    """
+    sections = {}
+    images = []
+    footer_lines = []
+    current = None
+    in_footer = False
+
+    for line in (draft or "").splitlines():
+        stripped = line.strip()
+        if in_footer:
+            footer_lines.append(line)
+            continue
+        if stripped == "---":
+            in_footer = True
+            continue
+
+        match = SECTION_RE.match(stripped)
+        if match:
+            name = match.group(1).strip()
+            rest = match.group(2).strip()
+            if IMAGE_SECTION_RE.match(name):
+                images.append({"name": name, "alt": "", "filename": ""})
+                current = None
+            else:
+                current = name
+                sections[current] = [rest] if rest else []
+            continue
+
+        if images and current is None:
+            alt = ALT_RE.match(stripped)
+            filename = FILENAME_RE.match(stripped)
+            if alt:
+                images[-1]["alt"] = alt.group(1).strip()
+            elif filename:
+                images[-1]["filename"] = filename.group(1).strip()
+            continue
+
+        if current is not None:
+            sections[current].append(line)
+
+    return {
+        "sections": {k: "\n".join(v).strip() for k, v in sections.items()},
+        "images": images,
+        "footer": "\n".join(footer_lines).strip(),
+    }
+
+
+def find_section(sections, prefix):
+    for name, value in sections.items():
+        if name.startswith(prefix):
+            return value
+    return ""
+
+
+def _inline_html(text):
+    text = html.escape(text, quote=False)
+    text = BOLD_RE.sub(r"<strong>\1</strong>", text)
+    return URL_RE.sub(r'<a href="\1">\1</a>', text)
+
+
+def _heading_text(text):
+    return BOLD_RE.sub(r"\1", text).strip().strip("*").strip()
+
+
+def markdown_to_clean_html(text):
+    """초안 마크다운을 class/style/id/data-* 속성이 전혀 없는 순수 HTML로 바꾼다.
+
+    ✨ 소제목 → <h2>, 🔹 소제목 → <h3>, 하이픈 목록 → <ul><li>, 나머지 줄 → <p>.
+    """
+    out = []
+    list_items = []
+
+    def flush_list():
+        if list_items:
+            out.append("<ul>\n" + "\n".join(f"<li>{i}</li>" for i in list_items) + "\n</ul>")
+            list_items.clear()
+
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            flush_list()
+            continue
+
+        if stripped.startswith("✨") or stripped.startswith("## "):
+            flush_list()
+            heading = _heading_text(stripped.lstrip("✨#").strip())
+            out.append(f"<h2>{_inline_html(heading)}</h2>")
+        elif stripped.startswith("🔹") or stripped.startswith("### "):
+            flush_list()
+            heading = _heading_text(stripped.lstrip("🔹#").strip())
+            out.append(f"<h3>{_inline_html(heading)}</h3>")
+        elif LIST_ITEM_RE.match(stripped):
+            list_items.append(_inline_html(LIST_ITEM_RE.match(stripped).group(1)))
+        else:
+            flush_list()
+            out.append(f"<p>{_inline_html(stripped)}</p>")
+
+    flush_list()
+    return "\n".join(out)
+
+
+def build_clean_html(draft):
+    """워드프레스 '코드 편집기'에 그대로 붙여넣을 수 있는 본문 HTML을 만든다."""
+    parsed = parse_draft_sections(draft)
+    sections = parsed["sections"]
+
+    parts = []
+    for name in HTML_BODY_SECTIONS:
+        value = find_section(sections, name)
+        if not value:
+            continue
+        if name != "본문":
+            parts.append(f"<h2>{html.escape(name)}</h2>")
+        parts.append(markdown_to_clean_html(value))
+
+    if parsed["footer"]:
+        parts.append(markdown_to_clean_html(parsed["footer"]))
+
+    return "\n\n".join(p for p in parts if p)
+
+
+def _normalize(text):
+    return re.sub(r"[\s\W_]+", "", (text or "").lower())
+
+
+def audit_draft(draft):
+    """'프로그램이 쓴 글'로 보일 만한 기계적 흔적을 찾아 경고 문구 리스트로 돌려준다."""
+    parsed = parse_draft_sections(draft)
+    sections = parsed["sections"]
+    images = parsed["images"]
+    warnings = []
+
+    keyword = find_section(sections, "키워드")
+    title = find_section(sections, "글제목")
+    body = find_section(sections, "본문")
+    permalink = find_section(sections, "퍼머링크")
+    norm_keyword = _normalize(keyword)
+    norm_title = _normalize(title)
+
+    # 1) 이미지 과잉 최적화: 대체 텍스트/파일명이 키워드·제목 복사본인 경우
+    for img in images:
+        alt = img["alt"]
+        norm_alt = _normalize(alt)
+        if norm_alt and norm_alt in (norm_keyword, norm_title):
+            warnings.append(
+                f"[{img['name']}] 대체 텍스트가 키워드/글제목과 똑같습니다 ('{alt}'). "
+                "이미지에 실제로 보이는 장면을 묘사하는 문장으로 바꿔 주세요."
+            )
+        filename_stem = re.sub(r"\.\w{2,4}$", "", img["filename"])
+        if filename_stem and permalink and _normalize(filename_stem) == _normalize(permalink):
+            warnings.append(
+                f"[{img['name']}] 파일명이 퍼머링크와 똑같습니다 ('{img['filename']}'). "
+                "장면을 묘사하는 다른 파일명으로 저장해 주세요."
+            )
+
+    alts = [_normalize(i["alt"]) for i in images if i["alt"]]
+    if len(alts) >= 2 and len(set(alts)) < len(alts):
+        warnings.append("두 이미지의 대체 텍스트가 똑같습니다. 각 이미지의 장면을 따로 묘사해 주세요.")
+    if norm_keyword and len(alts) >= 2 and all(norm_keyword in a for a in alts):
+        warnings.append(
+            f"모든 이미지 대체 텍스트에 키워드 '{keyword}'가 반복됩니다. "
+            "파일명·대체 텍스트·제목에 같은 키워드를 반복하는 것은 대표적인 자동 발행 흔적입니다."
+        )
+
+    # 2) 본문 키워드 과다 반복
+    if keyword and body:
+        count = body.count(keyword)
+        if count > KEYWORD_REPEAT_LIMIT:
+            warnings.append(
+                f"본문에 키워드 '{keyword}'가 {count}회 그대로 반복됩니다. "
+                "일부를 동의어나 풀어쓴 표현으로 바꿔 주세요."
+            )
+
+    # 3) 복사/붙여넣기 시 깨지거나 기계적으로 보이는 마크다운 흔적
+    if body:
+        if re.search(r"^\s*#{2,}\s", body, re.MULTILINE):
+            warnings.append("본문에 '##' 마크다운 기호가 남아 있습니다.")
+        if re.search(r"^\s*\|.*\|\s*$", body, re.MULTILINE):
+            warnings.append("본문에 마크다운 표(|...|)가 남아 있습니다. 붙여넣기 시 깨집니다.")
+        body_len = len(body)
+        if not BODY_MIN_CHARS <= body_len <= BODY_MAX_CHARS:
+            warnings.append(
+                f"본문 길이가 공백 포함 {body_len:,}자입니다 "
+                f"(목표 {BODY_MIN_CHARS:,}~{BODY_MAX_CHARS:,}자)."
+            )
+    else:
+        warnings.append("'📌 본문' 항목을 찾지 못했습니다. 출력 형식이 깨졌는지 확인해 주세요.")
+
+    return warnings
+
+
+PUBLISH_CHECKLIST = """
+**✅ 발행 전 직접 검수 체크리스트** — AI 글은 초안일 뿐, 그대로 발행하면 색인 누락의 원인이 됩니다.
+- 내가 독자라면 이 글을 **끝까지 읽을 수 있는가?** 소리 내어 한 번 읽어 보고 어색한 문장을 고친다.
+- 도입부의 1인칭 가상 경험담을 **내 실제 경험·관찰**로 바꾼다.
+- 수치·날짜·기관명 등 **사실 정보를 원문 기사/공식 자료로 확인**한다.
+- 다른 사이트 글을 복사해 붙여넣지 않는다. 붙여넣을 때는 아래 **깨끗한 HTML**을 워드프레스 **코드 편집기**에 넣거나, 일반 텍스트로 붙여넣는다.
+- 발행 후 우클릭 → **페이지 소스 보기**에서 `<h2>` 옆에 `class`, `style`, `data-` 같은 이상한 꼬리표가 붙어 있지 않은지 확인한다.
+- 이미지 **파일명·대체 텍스트·이미지 제목(title)**을 모두 같은 키워드로 채우지 않는다. 워드프레스 미디어의 '제목'은 파일명이 그대로 들어가므로 필요하면 비우거나 고친다.
+"""
+
+
+def render_publish_helpers(draft, id_prefix):
+    if not (draft or "").strip():
+        return
+
+    with st.expander("🔍 발행 전 검수 (구글 색인 누락 방지)", expanded=True):
+        warnings = audit_draft(draft)
+        if warnings:
+            st.warning("아래 항목은 '프로그램이 쓴 글'처럼 보일 수 있습니다. 직접 고친 뒤 발행하세요.")
+            for w in warnings:
+                st.markdown(f"- {w}")
+        else:
+            st.success("자동 점검에서 기계적인 흔적이 발견되지 않았습니다. 그래도 아래 체크리스트로 직접 검수하세요.")
+        st.markdown(PUBLISH_CHECKLIST)
+
+    with st.expander("🧼 워드프레스 붙여넣기용 깨끗한 HTML (속성 없는 순수 태그)", expanded=False):
+        st.caption(
+            "class·style·id·data-* 꼬리표가 없는 순수 <h2>/<h3>/<p>/<ul> 태그만 사용합니다. "
+            "워드프레스 편집기 우측 상단 ⋮ → '코드 편집기'에 붙여넣으세요."
+        )
+        st.code(build_clean_html(draft), language="html", wrap_lines=True)
 
 
 TAG_RE = re.compile(r"<[^>]+>")
@@ -706,6 +966,7 @@ def render_keyword_and_draft_panel(
         height=800,
         wrap_lines=True,
     )
+    render_publish_helpers(st.session_state.get(draft_key, ""), id_prefix)
 
 
 def render_headline_list(headlines, tab_key):
@@ -818,6 +1079,13 @@ GUIDELINE_TEXT = """
 - **Q&A 구조(AEO 최적화)**: 소제목은 대화형 질문으로 작성하고, 바로 아래 2~3문장(50단어 내외)으로 즉답
 - **데이터 구조화(GEO 최적화)**: 모호한 표현 대신 확정적 어조 + 구체적 팩트·명사 위주 서술, 핵심은 불릿 리스트로 요약
 - **FAQ 섹션 필수**: 본문 하단(결론 직전)에 자주 묻는 질문 2~3개를 Q&A 형태로 추가
+
+**[구글 색인 누락 방지 요건]**
+- 키워드는 본문에 **2~4회** 자연스럽게 — 횟수를 채우려고 같은 문구를 반복하지 않음
+- 이미지 **대체 텍스트는 실제 장면 묘사**, 파일명도 장면을 묘사하는 영문 파일명 — 파일명·대체 텍스트·제목·키워드에 같은 키워드 반복 금지
+- 초안 아래 **🔍 발행 전 검수**에서 기계적 흔적(키워드 복사 대체 텍스트, 과다 반복 등)을 자동 점검
+- 붙여넣기는 **🧼 깨끗한 HTML**(class·style·data-* 꼬리표 없는 순수 태그)을 워드프레스 코드 편집기에 사용
+- AI 글은 **초안**일 뿐 — 1인칭 경험담·사실 정보는 반드시 직접 검수·수정 후 발행
 
 **[한의원 모드 요건]**
 - 대한민국 의료법 제56조 및 관련 규정 철저 준수
