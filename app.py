@@ -2,7 +2,7 @@ import html
 import os
 import re
 from difflib import SequenceMatcher
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus, urlparse
 
 import streamlit as st
 import feedparser
@@ -613,6 +613,7 @@ PUBLISH_CHECKLIST = """
 - 수치·날짜·기관명 등 **사실 정보를 원문 기사/공식 자료로 확인**한다.
 - 다른 사이트 글을 복사해 붙여넣지 않는다. 붙여넣을 때는 아래 **깨끗한 HTML**을 워드프레스 **코드 편집기**에 넣거나, 일반 텍스트로 붙여넣는다.
 - 발행 후 우클릭 → **페이지 소스 보기**에서 `<h2>` 옆에 `class`, `style`, `data-` 같은 이상한 꼬리표가 붙어 있지 않은지 확인한다.
+- 발행 후 아래 **🌐 색인 요청**에서 서치 콘솔 URL 검사 → '색인 생성 요청'을 누른다.
 - 이미지 **파일명·대체 텍스트·이미지 제목(title)**을 모두 같은 키워드로 채우지 않는다. 워드프레스 미디어의 '제목'은 파일명이 그대로 들어가므로 필요하면 비우거나 고친다.
 """
 
@@ -637,6 +638,102 @@ def render_publish_helpers(draft, id_prefix):
             "워드프레스 편집기 우측 상단 ⋮ → '코드 편집기'에 붙여넣으세요."
         )
         st.code(build_clean_html(draft), language="html", wrap_lines=True)
+
+    render_index_request_panel(id_prefix)
+
+
+# ---------------------------------------------------------------------------
+# 구글 서치 콘솔(Search Console) 연동 도우미
+# 글을 발행해도 구글이 그 페이지의 존재를 모르면 검색에 나오지 않는다.
+# (1) 도메인 소유권 확인 → (2) URL 검사로 색인 생성 요청 → (3) sitemap.xml 제출
+# 순서로 구글에 알려줘야 하며, 아래 함수들은 그 링크와 안내를 만들어 준다.
+# ---------------------------------------------------------------------------
+
+SEARCH_CONSOLE_HOME = "https://search.google.com/search-console"
+SEARCH_CONSOLE_INSPECT = SEARCH_CONSOLE_HOME + "/inspect?resource_id={resource}&id={url}"
+SEARCH_CONSOLE_SITEMAPS = SEARCH_CONSOLE_HOME + "/sitemaps?resource_id={resource}"
+
+# 사이트맵 주소는 사이트를 만든 도구마다 다르다. 영상처럼 무조건 /sitemap.xml을
+# 넣으면 워드프레스에서는 "가져올 수 없음" 오류가 나는 경우가 많아 후보를 함께 안내한다.
+SITEMAP_CANDIDATES = (
+    ("/sitemap_index.xml", "워드프레스 + Yoast SEO / Rank Math 플러그인"),
+    ("/wp-sitemap.xml", "워드프레스 기본 사이트맵 (SEO 플러그인 없음, WP 5.5+)"),
+    ("/sitemap.xml", "일반 홈페이지 빌더·직접 만든 사이트 대부분"),
+)
+
+
+def normalize_site_url(url):
+    """'barohaniwon.co.kr/abc' 처럼 https:// 없이 입력해도 처리되도록 정규화한다."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if not re.match(r"^https?://", url, re.IGNORECASE):
+        url = "https://" + url
+    parsed = urlparse(url)
+    if not parsed.netloc or "." not in parsed.netloc:
+        return ""
+    return url
+
+
+def search_console_domain(url):
+    """도메인 속성의 이름(https://, www., 경로를 뺀 부분)을 돌려준다."""
+    url = normalize_site_url(url)
+    if not url:
+        return ""
+    host = urlparse(url).hostname or ""
+    return host[4:] if host.startswith("www.") else host
+
+
+def search_console_links(url):
+    """발행한 글 주소로 서치 콘솔 'URL 검사' / '사이트맵' 바로가기 링크를 만든다.
+
+    영상에서 안내한 '도메인' 방식으로 소유권을 확인한 속성(sc-domain:)을 기준으로 한다.
+    """
+    url = normalize_site_url(url)
+    domain = search_console_domain(url)
+    if not domain:
+        return None
+    resource = quote(f"sc-domain:{domain}", safe="")
+    origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    return {
+        "domain": domain,
+        "inspect": SEARCH_CONSOLE_INSPECT.format(resource=resource, url=quote(url, safe="")),
+        "sitemaps": SEARCH_CONSOLE_SITEMAPS.format(resource=resource),
+        "sitemap_candidates": [(origin + path, desc) for path, desc in SITEMAP_CANDIDATES],
+    }
+
+
+def render_index_request_panel(id_prefix):
+    with st.expander("🌐 발행 후 구글에 색인 요청하기 (Search Console)", expanded=False):
+        st.markdown(
+            "글을 발행했다면 구글에 **\"이 페이지 확인해서 검색 DB에 넣어 줘\"** 라고 알려주세요. "
+            "새 글을 올렸을 때, 내용을 크게 고쳤을 때, URL 검사에서 "
+            "**'URL이 Google에 등록되어 있지 않음'** 으로 나올 때 하면 됩니다."
+        )
+        url_key = f"published_url_{id_prefix}"
+        st.text_input(
+            "발행한 글 주소 (https:// 생략 가능)",
+            key=url_key,
+            placeholder="예: barohaniwon.co.kr/back-pain-causes",
+        )
+        published = st.session_state.get(url_key, "")
+        if not published.strip():
+            return
+        links = search_console_links(published)
+        if not links:
+            st.error("주소 형식이 올바르지 않습니다. 예: barohaniwon.co.kr/글-주소")
+            return
+
+        st.link_button("🔎 서치 콘솔에서 이 글 URL 검사 열기", links["inspect"])
+        st.markdown(
+            "1. 열린 화면에서 검사 결과가 나오면 **'색인 생성 요청'** 을 클릭합니다.\n"
+            "2. 1~2분 정도 실시간 테스트가 끝나면 **'색인 생성 요청됨'** 이 뜹니다.\n"
+            "3. 실제 검색 반영까지는 보통 며칠에서 1~2주가 걸립니다. 같은 글을 여러 번 요청해도 빨라지지 않습니다."
+        )
+        st.caption(
+            f"'속성에 액세스할 수 없음'이 뜨면 아직 '{links['domain']}' 도메인 소유권 확인이 안 된 것입니다. "
+            "상단 '🌐 내 홈페이지 구글 노출 1단계' 안내를 먼저 진행하세요."
+        )
 
 
 TAG_RE = re.compile(r"<[^>]+>")
@@ -1096,6 +1193,53 @@ GUIDELINE_TEXT = """
 """.format(homepage=CLINIC_HOMEPAGE)
 
 
+SEARCH_CONSOLE_SETUP_GUIDE = """
+네이버에만 등록해 두면 구글 검색으로 들어오는 고객은 놓치게 됩니다. 홈페이지/블로그마다 **처음 한 번만** 아래 순서로 등록하세요.
+
+**① 도메인 소유권 확인**
+1. 구글에서 **'구글 서치 콘솔'** 을 검색해 접속합니다. ({home})
+2. 좌측 상단 속성 선택 → **속성 추가** → 두 가지 방식 중 왼쪽 **'도메인'** 을 선택합니다.
+3. 주소는 **https:// 와 www. 를 뺀 부분만** 넣습니다. (예: `{example}`)
+4. 도메인을 관리하는 곳(가비아·카페24·Cloudflare 등)이 안내되면 **확인 시작 → 권한 부여**를 누릅니다.
+   자동 연결이 안 되는 업체라면 안내된 **TXT 레코드**를 도메인 관리 페이지의 DNS 설정에 추가한 뒤 '확인'을 누릅니다.
+   (DNS 반영에 몇 분~몇 시간이 걸릴 수 있습니다.)
+
+**② 사이트맵(sitemap.xml) 제출** — 사이트 전체 페이지 목록을 구글에 알려주는 단계
+1. 좌측 메뉴 **Sitemaps** → '새 사이트맵 추가'에 주소를 넣고 **제출**합니다.
+2. 도메인만 넣으면 오류가 납니다. 반드시 **사이트맵 파일 주소**까지 넣어야 합니다. 사이트를 만든 도구에 따라 주소가 다릅니다.
+   - 워드프레스 + Yoast SEO / Rank Math: `/sitemap_index.xml`
+   - 워드프레스 기본(플러그인 없음): `/wp-sitemap.xml`
+   - 그 밖의 홈페이지 빌더: 대부분 `/sitemap.xml`
+   (브라우저에서 해당 주소를 직접 열어 XML 목록이 보이는 것을 먼저 확인하세요.)
+3. 상태가 **'성공'** 으로 뜨면 완료입니다.
+
+**③ 새 글은 URL 검사로 색인 요청** — 글을 발행할 때마다 초안 아래 **'🌐 발행 후 구글에 색인 요청하기'** 에 글 주소를 넣으면 바로가기가 만들어집니다.
+
+**확인 방법:** 며칠 뒤 구글에 `site:{example}` 를 검색하면 색인된 페이지 목록을 볼 수 있습니다.
+""".format(home=SEARCH_CONSOLE_HOME, example=CLINIC_HOMEPAGE)
+
+
+def render_search_console_panel():
+    with st.expander("🌐 내 홈페이지 구글 노출 1단계 (Search Console 등록)", expanded=False):
+        st.markdown(SEARCH_CONSOLE_SETUP_GUIDE)
+        site = st.text_input(
+            "내 홈페이지/블로그 주소로 바로가기 만들기",
+            value=CLINIC_HOMEPAGE,
+            key="search_console_site",
+        )
+        links = search_console_links(site)
+        if not links:
+            st.caption("주소 형식이 올바르지 않습니다. 예: barohaniwon.co.kr")
+            return
+        st.markdown(f"- 서치 콘솔에 등록할 도메인 이름: `{links['domain']}`")
+        col1, col2 = st.columns(2)
+        col1.link_button("서치 콘솔 열기", SEARCH_CONSOLE_HOME)
+        col2.link_button("이 도메인 사이트맵 제출 화면", links["sitemaps"])
+        st.markdown("**사이트맵 주소 후보** (브라우저에서 열어 XML이 보이는 것을 제출하세요)")
+        for sitemap_url, desc in links["sitemap_candidates"]:
+            st.markdown(f"- [{sitemap_url}]({sitemap_url}) — {desc}")
+
+
 def render_guideline_panel():
     with st.expander("📝 현재 글쓰기 가이드라인 (프롬프트 요건)", expanded=False):
         st.markdown(GUIDELINE_TEXT)
@@ -1123,6 +1267,7 @@ def main():
         get_news_data.clear()
 
     render_guideline_panel()
+    render_search_console_panel()
 
     tab_labels = CATEGORIES + ["한의원 글쓰기"]
     tabs = st.tabs(tab_labels)
