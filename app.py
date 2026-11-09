@@ -12,6 +12,8 @@ from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from datetime import datetime
 
+from homeplan import render_homeplan_master
+
 load_dotenv()
 
 GOOGLE_TRENDS_RSS = "https://trends.google.co.kr/trending/rss?geo=KR&hl=ko"
@@ -86,6 +88,14 @@ GEMINI_GENERATION_CONFIG = genai_types.GenerateContentConfig(
     max_output_tokens=16384,
     safety_settings=GEMINI_SAFETY_SETTINGS,
     thinking_config=genai_types.ThinkingConfig(thinking_budget=2048),
+)
+# 홈판 마스터 탭에서 관점/키워드/스레드 글처럼 구조화된 목록을 받을 때 사용하는 JSON 응답 설정
+GEMINI_JSON_CONFIG = genai_types.GenerateContentConfig(
+    temperature=0.8,
+    max_output_tokens=8192,
+    safety_settings=GEMINI_SAFETY_SETTINGS,
+    thinking_config=genai_types.ThinkingConfig(thinking_budget=1024),
+    response_mime_type="application/json",
 )
 
 # 바로한의원 공식 채널 정보 (한의원 전용 글쓰기 탭에서만 사용)
@@ -317,7 +327,8 @@ def get_gemini_client(api_key):
     )
 
 
-def call_gemini(prompt):
+def call_gemini(prompt, json_mode=False):
+    config = GEMINI_JSON_CONFIG if json_mode else GEMINI_GENERATION_CONFIG
     api_key = get_gemini_api_key()
     if not api_key:
         raise RuntimeError("Gemini API 키가 설정되지 않았습니다. 사이드바에서 입력해주세요.")
@@ -327,12 +338,12 @@ def call_gemini(prompt):
     try:
         try:
             response = client.models.generate_content(
-                model=GEMINI_MODEL_PRIMARY, contents=prompt, config=GEMINI_GENERATION_CONFIG
+                model=GEMINI_MODEL_PRIMARY, contents=prompt, config=config
             )
         except genai_errors.APIError:
             # gemini-3.6-pro를 사용할 수 없는 계정/리전인 경우 gemini-3.6-flash로 폴백
             response = client.models.generate_content(
-                model=GEMINI_MODEL_FALLBACK, contents=prompt, config=GEMINI_GENERATION_CONFIG
+                model=GEMINI_MODEL_FALLBACK, contents=prompt, config=config
             )
     except Exception as e:
         # API 키 오류, 네트워크 타임아웃, 할당량 초과 등 폴백 호출까지 실패한 모든 경우를
@@ -856,7 +867,7 @@ def main():
 
     render_guideline_panel()
 
-    tab_labels = CATEGORIES + ["한의원 글쓰기"]
+    tab_labels = CATEGORIES + ["한의원 글쓰기", "홈판 마스터"]
     tabs = st.tabs(tab_labels)
     for tab, category in zip(tabs, CATEGORIES):
         with tab:
@@ -865,8 +876,14 @@ def main():
             st.caption(f"마지막 업데이트 시간: {data['updated_at']}")
             render_headline_list(data["headlines"], tab_key=category)
 
-    with tabs[-1]:
+    with tabs[-2]:
         render_clinic_tab()
+
+    with tabs[-1]:
+        render_homeplan_master(
+            call_llm=call_gemini,
+            get_trending=lambda: [h for h, _ in get_news_data("전체")["headlines"]],
+        )
 
 
 if __name__ == "__main__":
