@@ -1,13 +1,9 @@
-import base64
 import html
-import json
 import os
 import re
 from difflib import SequenceMatcher
 from urllib.parse import quote_plus
 
-import anthropic
-import openai
 import streamlit as st
 import feedparser
 from dotenv import load_dotenv
@@ -91,99 +87,6 @@ GEMINI_GENERATION_CONFIG = genai_types.GenerateContentConfig(
     safety_settings=GEMINI_SAFETY_SETTINGS,
     thinking_config=genai_types.ThinkingConfig(thinking_budget=2048),
 )
-
-# ---------------------------------------------------------------------------
-# AI 드림팀 설정
-# 각 AI의 주특기에 맞춰 역할을 나누고, 앱(파이썬 코드)이 지휘자(오케스트레이터)가 되어
-# 순서대로 일을 시키고 결과물을 취합한다.
-#   - Gemini  : 리서처   — 구글 검색 연동으로 최신 팩트 브리핑 수집
-#   - Claude  : 메인 작가 — 브리핑을 바탕으로 원고 집필 + 검수 의견 반영 수정
-#   - ChatGPT : 검수/디자인 — 규칙 위반 검수, 이미지 프롬프트로 실제 이미지 생성
-# 키가 없는 멤버는 건너뛰거나 Gemini가 대신 맡는다(아래 dream_team_write 참고).
-# 모델명은 .env 로 바꿀 수 있다.
-# ---------------------------------------------------------------------------
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
-CLAUDE_EFFORT = os.getenv("CLAUDE_EFFORT", "medium")  # low | medium | high | xhigh | max
-CLAUDE_MAX_TOKENS = 32000
-CLAUDE_TIMEOUT_SECONDS = 300
-OPENAI_TEXT_MODEL = os.getenv("OPENAI_TEXT_MODEL", "gpt-5.5")
-OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2")
-OPENAI_IMAGE_SIZE = "1536x1024"  # 16:9에 가장 가까운 가로형
-OPENAI_TIMEOUT_SECONDS = 180
-
-PROVIDERS = {
-    "gemini": {"label": "Gemini", "env": "GEMINI_API_KEY"},
-    "claude": {"label": "Claude", "env": "ANTHROPIC_API_KEY"},
-    "openai": {"label": "ChatGPT", "env": "OPENAI_API_KEY"},
-}
-
-MODE_GEMINI = "Gemini 단독 (기존 방식)"
-MODE_DREAM_TEAM = "🤝 AI 드림팀 (Gemini + Claude + ChatGPT)"
-
-# 리서치 전용 설정: 구글 검색 그라운딩으로 최신 사실을 모은다.
-GEMINI_RESEARCH_CONFIG = genai_types.GenerateContentConfig(
-    temperature=0.3,
-    max_output_tokens=8192,
-    safety_settings=GEMINI_SAFETY_SETTINGS,
-    thinking_config=genai_types.ThinkingConfig(thinking_budget=1024),
-    tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
-)
-
-RESEARCH_PROMPT_TEMPLATE = """당신은 블로그 집필팀의 리서처입니다. 구글 검색을 활용해 주제 '{topic}'에 대한 최신 정보를 조사하세요.
-
-[출력 규칙]
-- 블로그 작가가 바로 참고할 수 있는 '팩트 브리핑'을 하이픈(-) 불릿으로 8~12개 작성하세요.
-- 날짜, 수치, 기관명, 고유명사 등 확인된 사실 위주로 쓰고, 추측이나 의견은 쓰지 마세요.
-- 확인되지 않거나 출처끼리 엇갈리는 내용은 '(미확인)'이라고 표시하세요.
-- 마지막 줄에 '핵심 검색 의도:' 로 시작하는 한 줄 요약(독자가 가장 궁금해할 질문)을 덧붙이세요.
-- 전체 800자 이내로 작성하세요.
-"""
-
-RESEARCH_BRIEF_INSTRUCTION = """
-
-[리서치팀(Gemini) 최신 팩트 브리핑]
-{brief}
-
-[브리핑 활용 규칙]
-- 위 브리핑은 구글 검색으로 수집한 최신 정보입니다. 본문의 사실·수치·날짜는 브리핑을 근거로 작성하세요.
-- 브리핑에 없는 구체적 수치나 날짜를 지어내지 마세요. '(미확인)' 표시된 내용은 단정하지 마세요.
-"""
-
-REVIEW_SYSTEM_PROMPT = """당신은 블로그 원고 검수 전문 에디터입니다. 작가에게 전달할 수정 지시를 만드는 것이 임무입니다.
-반드시 아래 JSON 형식으로만 답하세요.
-{"verdict": "pass" 또는 "revise", "summary": "한 줄 총평", "issues": ["구체적인 수정 지시", ...]}
-- 실제로 규칙을 어긴 부분만 issues에 넣으세요. 취향 차이나 사소한 표현은 넣지 마세요.
-- 각 지시는 '어디를 어떻게 고칠지'가 드러나게 한 문장으로 쓰세요.
-- 위반이 없으면 verdict를 "pass", issues를 빈 배열로 두세요."""
-
-REVIEW_PROMPT_TEMPLATE = """[작성 규칙 원문]
-{rules}
-
-[검수 대상 원고]
-{draft}
-
-[시스템 실측값]
-- 📌 본문 항목의 글자 수(공백 포함): {body_len}자 (허용 범위 1,700~1,900자)
-
-위 원고가 작성 규칙을 지켰는지 검수하세요. 특히 다음을 확인하세요.
-1. 출력 템플릿의 📌 항목 누락/순서 오류
-2. 본문 분량(실측값 기준), 마크다운 표·##·구분선(---) 사용 여부
-3. 검색설명 130~150자, 소제목 ✨ + 질문형, FAQ 섹션 존재
-4. 과장·단정 표현(완치, 최고, 특효, 100% 등) 및 근거 없는 수치
-5. 이미지 프롬프트 2세트(🎨/📝/🖼️)와 화풍 고정 문구"""
-
-REVISION_PROMPT_TEMPLATE = """{writer_prompt}
-
-[1차 원고]
-{draft}
-
-[검수팀(ChatGPT) 수정 지시]
-{issues}
-
-위 수정 지시를 모두 반영해 원고 전체를 다시 작성하세요. 출력 템플릿 형식을 그대로 지키고, 설명이나 머리말 없이 완성된 원고만 출력하세요."""
-
-IMAGE_PROMPT_RE = re.compile(r"🎨\s*영문\s*프롬프트\s*[:：]\s*(.+)")
-BODY_SECTION_RE = re.compile(r"📌\s*\*\*본문:?\*\*:?(.*?)(?=📌|\Z)", re.S)
 
 # 바로한의원 공식 채널 정보 (한의원 전용 글쓰기 탭에서만 사용)
 CLINIC_NAME = "바로한의원"
@@ -378,34 +281,29 @@ CLINIC_PROMPT_TEMPLATE = f"""
 """
 
 
-def get_api_key(provider):
+def get_gemini_api_key():
     # 사이드바에서 직접 입력/초기화한 키를 항상 최우선으로 사용한다.
-    session_key = st.session_state.get(f"{provider}_api_key", "")
+    session_key = st.session_state.get("gemini_api_key", "")
     if session_key:
         return session_key
 
     # '초기화' 버튼을 누른 직후에는 .env/secrets 값이 남아있어도 무시하고
     # 빈 입력창을 보여줘야 하므로, 여기서 즉시 빈 값을 반환한다.
-    if st.session_state.get(f"ignore_env_key_{provider}"):
+    if st.session_state.get("ignore_env_key"):
         return ""
 
-    env_name = PROVIDERS[provider]["env"]
-    env_key = os.getenv(env_name)
+    env_key = os.getenv("GEMINI_API_KEY")
     if env_key:
         return env_key
 
     try:
-        secrets_key = st.secrets.get(env_name)
+        secrets_key = st.secrets.get("GEMINI_API_KEY")
     except Exception:
         secrets_key = None
     if secrets_key:
         return secrets_key
 
     return ""
-
-
-def get_gemini_api_key():
-    return get_api_key("gemini")
 
 
 GEMINI_TIMEOUT_MS = 60_000  # 네트워크가 응답 없이 무한정 대기하지 않도록 60초 타임아웃 강제
@@ -419,7 +317,7 @@ def get_gemini_client(api_key):
     )
 
 
-def call_gemini(prompt, config=GEMINI_GENERATION_CONFIG):
+def call_gemini(prompt):
     api_key = get_gemini_api_key()
     if not api_key:
         raise RuntimeError("Gemini API 키가 설정되지 않았습니다. 사이드바에서 입력해주세요.")
@@ -429,12 +327,12 @@ def call_gemini(prompt, config=GEMINI_GENERATION_CONFIG):
     try:
         try:
             response = client.models.generate_content(
-                model=GEMINI_MODEL_PRIMARY, contents=prompt, config=config
+                model=GEMINI_MODEL_PRIMARY, contents=prompt, config=GEMINI_GENERATION_CONFIG
             )
         except genai_errors.APIError:
             # gemini-3.6-pro를 사용할 수 없는 계정/리전인 경우 gemini-3.6-flash로 폴백
             response = client.models.generate_content(
-                model=GEMINI_MODEL_FALLBACK, contents=prompt, config=config
+                model=GEMINI_MODEL_FALLBACK, contents=prompt, config=GEMINI_GENERATION_CONFIG
             )
     except Exception as e:
         # API 키 오류, 네트워크 타임아웃, 할당량 초과 등 폴백 호출까지 실패한 모든 경우를
@@ -455,207 +353,7 @@ def call_gemini(prompt, config=GEMINI_GENERATION_CONFIG):
     return text
 
 
-@st.cache_resource(show_spinner=False)
-def get_claude_client(api_key):
-    return anthropic.Anthropic(api_key=api_key, timeout=CLAUDE_TIMEOUT_SECONDS)
-
-
-@st.cache_resource(show_spinner=False)
-def get_openai_client(api_key):
-    return openai.OpenAI(api_key=api_key, timeout=OPENAI_TIMEOUT_SECONDS)
-
-
-def call_claude(prompt, system=None):
-    api_key = get_api_key("claude")
-    if not api_key:
-        raise RuntimeError("Claude API 키가 설정되지 않았습니다. 사이드바에서 입력해주세요.")
-
-    client = get_claude_client(api_key)
-    request = dict(
-        model=CLAUDE_MODEL,
-        max_tokens=CLAUDE_MAX_TOKENS,
-        output_config={"effort": CLAUDE_EFFORT},
-        messages=[{"role": "user", "content": prompt}],
-    )
-    if system:
-        request["system"] = system
-    if CLAUDE_MODEL == "claude-opus-5-5":
-        # 안전 분류기가 요청을 거절(refusal)하면 서버가 자동으로 대체 모델로 이어서 답하게 한다.
-        request["betas"] = ["server-side-fallback-2026-07-01"]
-        request["fallbacks"] = "default"
-
-    try:
-        # 긴 원고는 응답 시간이 길어 HTTP 타임아웃을 피하려고 스트리밍으로 받는다.
-        with client.beta.messages.stream(**request) as stream:
-            message = stream.get_final_message()
-    except anthropic.AuthenticationError as e:
-        raise RuntimeError("Claude API 키가 올바르지 않습니다. 사이드바에서 다시 입력해 주세요.") from e
-    except anthropic.RateLimitError as e:
-        raise RuntimeError("Claude 사용량 한도에 걸렸습니다. 잠시 후 다시 시도해 주세요.") from e
-    except anthropic.APIError as e:
-        raise RuntimeError(f"Claude API 호출 중 문제가 발생했습니다. (에러 내용: {e})") from e
-
-    if message.stop_reason == "refusal":
-        raise RuntimeError("Claude가 이 주제의 작성을 거절했습니다. 주제를 바꾸거나 Gemini 단독 모드로 시도해 주세요.")
-
-    text = "".join(block.text for block in message.content if block.type == "text").strip()
-    if not text:
-        raise RuntimeError(f"Claude 응답에 본문이 없습니다 (stop_reason={message.stop_reason})")
-    return text
-
-
-def call_openai(prompt, system=None, json_mode=False):
-    api_key = get_api_key("openai")
-    if not api_key:
-        raise RuntimeError("ChatGPT(OpenAI) API 키가 설정되지 않았습니다. 사이드바에서 입력해주세요.")
-
-    client = get_openai_client(api_key)
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
-
-    kwargs = {"model": OPENAI_TEXT_MODEL, "messages": messages}
-    if json_mode:
-        kwargs["response_format"] = {"type": "json_object"}
-
-    try:
-        response = client.chat.completions.create(**kwargs)
-    except openai.AuthenticationError as e:
-        raise RuntimeError("ChatGPT API 키가 올바르지 않습니다. 사이드바에서 다시 입력해 주세요.") from e
-    except openai.OpenAIError as e:
-        raise RuntimeError(f"ChatGPT API 호출 중 문제가 발생했습니다. (에러 내용: {e})") from e
-
-    text = (response.choices[0].message.content or "").strip()
-    if not text:
-        raise RuntimeError("ChatGPT 응답에 본문이 없습니다.")
-    return text
-
-
-def generate_images_with_openai(prompts):
-    """원고의 🎨 영문 프롬프트로 실제 이미지를 생성해 PNG 바이트 리스트로 돌려준다."""
-    api_key = get_api_key("openai")
-    if not api_key:
-        raise RuntimeError("이미지 생성에는 ChatGPT(OpenAI) API 키가 필요합니다.")
-
-    client = get_openai_client(api_key)
-    images = []
-    for prompt in prompts:
-        # '--ar 16:9' 같은 미드저니 전용 파라미터는 OpenAI가 이해하지 못하므로 떼고 size로 지정한다.
-        clean_prompt = re.sub(r"\s--\w+\s+\S+", "", prompt).strip()
-        try:
-            result = client.images.generate(
-                model=OPENAI_IMAGE_MODEL, prompt=clean_prompt, size=OPENAI_IMAGE_SIZE, n=1
-            )
-        except openai.OpenAIError as e:
-            raise RuntimeError(f"이미지 생성 중 문제가 발생했습니다. (에러 내용: {e})") from e
-        images.append(base64.b64decode(result.data[0].b64_json))
-    return images
-
-
-def extract_image_prompts(draft):
-    return [m.strip() for m in IMAGE_PROMPT_RE.findall(draft or "") if m.strip()]
-
-
-def measure_body_length(draft):
-    match = BODY_SECTION_RE.search(draft or "")
-    return len(match.group(1).strip()) if match else len((draft or "").strip())
-
-
-def is_dream_team_mode():
-    return st.session_state.get("writing_mode") == MODE_DREAM_TEAM
-
-
-def research_with_gemini(topic):
-    return call_gemini(RESEARCH_PROMPT_TEMPLATE.format(topic=topic), config=GEMINI_RESEARCH_CONFIG)
-
-
-def review_with_openai(rules, draft):
-    raw = call_openai(
-        REVIEW_PROMPT_TEMPLATE.format(rules=rules, draft=draft, body_len=measure_body_length(draft)),
-        system=REVIEW_SYSTEM_PROMPT,
-        json_mode=True,
-    )
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return {"verdict": "pass", "summary": "검수 결과를 해석하지 못해 1차 원고를 그대로 사용합니다.", "issues": []}
-    issues = [str(i).strip() for i in data.get("issues") or [] if str(i).strip()]
-    verdict = "revise" if data.get("verdict") == "revise" and issues else "pass"
-    return {"verdict": verdict, "summary": str(data.get("summary", "")).strip(), "issues": issues}
-
-
-def dream_team_write(writer_prompt, topic, progress=None):
-    """앱이 지휘자가 되어 Gemini(리서치) → Claude(집필) → ChatGPT(검수) → Claude(수정) 순으로 일을 시킨다.
-
-    키가 없는 멤버는 건너뛰거나 Gemini가 대신 맡는다. (원고, 작업 리포트 마크다운)을 돌려준다.
-    """
-    report = progress or (lambda _msg: None)
-    log = []
-
-    def note(msg):
-        log.append(msg)
-        report(msg)
-
-    has_gemini = bool(get_api_key("gemini"))
-    has_claude = bool(get_api_key("claude"))
-    has_openai = bool(get_api_key("openai"))
-    if not (has_gemini or has_claude):
-        raise RuntimeError("원고를 쓸 작가가 없습니다. Claude 또는 Gemini API 키를 입력해 주세요.")
-
-    # 1) 리서치: Gemini + 구글 검색
-    prompt = writer_prompt
-    if has_gemini:
-        note("🔎 **Gemini(리서처)**: 구글 검색으로 최신 팩트를 수집하는 중...")
-        try:
-            brief = research_with_gemini(topic)
-            prompt = writer_prompt + RESEARCH_BRIEF_INSTRUCTION.format(brief=brief)
-            note(f"🔎 **Gemini(리서처)** 팩트 브리핑 완료\n\n{brief}")
-        except Exception as e:  # 리서치는 보조 단계라 실패해도 집필은 계속한다.
-            note(f"⚠️ 리서치 단계를 건너뜁니다: {e}")
-    else:
-        note("⏭️ Gemini 키가 없어 리서치 단계를 건너뜁니다.")
-
-    # 2) 집필: Claude (없으면 Gemini가 대신)
-    writer_name = "Claude" if has_claude else "Gemini"
-    writer = call_claude if has_claude else call_gemini
-    note(f"✍️ **{writer_name}(메인 작가)**: 원고를 집필하는 중...")
-    draft = writer(prompt)
-    note(f"✍️ **{writer_name}(메인 작가)** 1차 원고 완료 (본문 {measure_body_length(draft):,}자)")
-
-    # 3) 검수: ChatGPT → 지적사항이 있으면 작가가 한 번 수정
-    if has_openai:
-        note("🧐 **ChatGPT(검수자)**: 작성 규칙 위반 여부를 검수하는 중...")
-        try:
-            review = review_with_openai(writer_prompt, draft)
-        except Exception as e:
-            review = None
-            note(f"⚠️ 검수 단계를 건너뜁니다: {e}")
-        if review:
-            issues_md = "\n".join(f"- {issue}" for issue in review["issues"])
-            note(f"🧐 **ChatGPT(검수자)** 총평: {review['summary'] or '-'}" + (f"\n\n{issues_md}" if issues_md else ""))
-            if review["verdict"] == "revise":
-                note(f"🔁 **{writer_name}(메인 작가)**: 검수 의견을 반영해 수정하는 중...")
-                draft = writer(
-                    REVISION_PROMPT_TEMPLATE.format(writer_prompt=prompt, draft=draft, issues=issues_md)
-                )
-                note(f"🔁 **{writer_name}(메인 작가)** 수정본 완료 (본문 {measure_body_length(draft):,}자)")
-            else:
-                note("✅ 검수 통과 — 1차 원고를 최종본으로 확정합니다.")
-    else:
-        note("⏭️ ChatGPT 키가 없어 검수 단계를 건너뜁니다.")
-
-    return draft, "\n\n".join(log)
-
-
-def write_post(prompt, topic, progress=None):
-    """현재 작성 모드에 맞춰 원고를 만든다. (원고, 드림팀 리포트 또는 None)을 돌려준다."""
-    if is_dream_team_mode():
-        return dream_team_write(prompt, topic, progress)
-    return call_gemini(prompt), None
-
-
-def build_blog_prompt(headline, target_keyword=""):
+def generate_blog_post(headline, target_keyword=""):
     target_keyword = (target_keyword or "").strip()
     if target_keyword:
         keyword_instruction = (
@@ -665,11 +363,8 @@ def build_blog_prompt(headline, target_keyword=""):
     else:
         keyword_instruction = "뉴스 헤드라인을 분석해 롱테일 키워드를 1개 자동 추출하세요."
 
-    return BLOG_PROMPT_TEMPLATE.format(headline=headline, keyword_instruction=keyword_instruction)
-
-
-def generate_blog_post(headline, target_keyword="", progress=None):
-    return write_post(build_blog_prompt(headline, target_keyword), headline, progress)
+    prompt = BLOG_PROMPT_TEMPLATE.format(headline=headline, keyword_instruction=keyword_instruction)
+    return call_gemini(prompt)
 
 
 def expand_keyword(keyword):
@@ -677,11 +372,11 @@ def expand_keyword(keyword):
     return call_gemini(prompt)
 
 
-def generate_clinic_post(topic, progress=None):
+def generate_clinic_post(topic):
     prompt = CLINIC_PROMPT_TEMPLATE.format(topic=topic)
-    text, team_log = write_post(prompt, topic, progress)
+    text = call_gemini(prompt)
     # 주소/전화번호 등은 AI가 매번 다시 쓰게 하지 않고, 고정 푸터를 그대로 이어붙인다.
-    return f"{text}\n\n{CLINIC_FOOTER_TEMPLATE}", team_log
+    return f"{text}\n\n{CLINIC_FOOTER_TEMPLATE}"
 
 
 TAG_RE = re.compile(r"<[^>]+>")
@@ -836,98 +531,21 @@ def select_and_trigger_write(keyword_key, value, trigger_key):
     st.session_state[trigger_key] = True
 
 
-def reset_api_key(provider="gemini"):
-    st.session_state[f"{provider}_api_key"] = ""
-    st.session_state[f"ignore_env_key_{provider}"] = True
-    if f"{provider}_api_key_input" in st.session_state:
-        del st.session_state[f"{provider}_api_key_input"]
+def reset_api_key():
+    st.session_state["gemini_api_key"] = ""
+    st.session_state["ignore_env_key"] = True
+    if "gemini_api_key_input" in st.session_state:
+        del st.session_state["gemini_api_key_input"]
 
 
-def apply_api_key(provider="gemini"):
-    # 위젯 자신의 key({provider}_api_key_input)에서 값을 읽어와, 별도의
-    # 세션 변수({provider}_api_key)에 확정적으로 덮어쓴다. text_input의 반환값을
+def apply_api_key():
+    # 위젯 자신의 key(gemini_api_key_input)에서 값을 읽어와, 별도의
+    # 세션 변수(gemini_api_key)에 확정적으로 덮어쓴다. text_input의 반환값을
     # 매 rerun마다 암묵적으로 미러링하던 기존 방식은 붙여넣기 타이밍에 따라
     # 값이 반영되지 않을 수 있어, 명시적인 "적용" 버튼 클릭 시점에만 확정한다.
-    # (on_click 콜백이 끝나면 Streamlit이 자동으로 rerun 하므로 st.rerun()은 필요 없다.)
-    st.session_state[f"{provider}_api_key"] = st.session_state.get(f"{provider}_api_key_input", "").strip()
-    st.session_state[f"ignore_env_key_{provider}"] = False
-
-
-def clear_draft(draft_key):
-    # 초안과 함께 드림팀 리포트/생성 이미지도 같이 지운다.
-    st.session_state[draft_key] = ""
-    st.session_state.pop(f"{draft_key}_team_log", None)
-    st.session_state.pop(f"{draft_key}_images", None)
-
-
-def run_draft_generation(draft_key, generate, spinner_text):
-    """generate(progress) -> (원고, 드림팀 리포트)를 실행하고 결과를 세션에 저장한다.
-
-    드림팀 모드에서는 각 AI 멤버의 진행 상황을 st.status 안에 실시간으로 보여준다.
-    """
-    try:
-        if is_dream_team_mode():
-            with st.status(f"🤝 AI 드림팀 가동 중 — {spinner_text}", expanded=True) as status:
-                try:
-                    text, team_log = generate(status.markdown)
-                except Exception:
-                    status.update(label="❌ 드림팀 작업 실패", state="error", expanded=True)
-                    raise
-                status.update(label="✅ 드림팀 작업 완료", state="complete", expanded=False)
-        else:
-            with st.spinner(spinner_text):
-                text, team_log = generate(None)
-    except Exception as e:
-        st.error(str(e))
-        return
-
-    st.session_state[draft_key] = text
-    st.session_state.pop(f"{draft_key}_images", None)
-    if team_log:
-        st.session_state[f"{draft_key}_team_log"] = team_log
-    else:
-        st.session_state.pop(f"{draft_key}_team_log", None)
-
-
-def render_team_outputs(draft_key):
-    team_log = st.session_state.get(f"{draft_key}_team_log")
-    if team_log:
-        with st.expander("🤝 AI 드림팀 작업 리포트", expanded=False):
-            st.markdown(team_log)
-
-    prompts = extract_image_prompts(st.session_state.get(draft_key, ""))
-    if not prompts:
-        return
-
-    images_key = f"{draft_key}_images"
-    has_openai = bool(get_api_key("openai"))
-    if st.button(
-        f"🎨 ChatGPT로 이미지 {len(prompts)}장 생성",
-        key=f"gen_images_{draft_key}",
-        disabled=not has_openai,
-        help=None if has_openai else "사이드바에 ChatGPT(OpenAI) API 키를 입력하면 사용할 수 있습니다.",
-    ):
-        try:
-            with st.spinner("ChatGPT가 이미지를 그리고 있습니다..."):
-                st.session_state[images_key] = generate_images_with_openai(prompts)
-        except Exception as e:
-            st.error(str(e))
-
-    images = st.session_state.get(images_key) or []
-    if images:
-        cols = st.columns(len(images))
-        labels = ["이미지 1 (도입부)", "이미지 2 (결론부)"]
-        for i, (col, image) in enumerate(zip(cols, images)):
-            label = labels[i] if i < len(labels) else f"이미지 {i + 1}"
-            with col:
-                st.image(image, caption=label, width="stretch")
-                st.download_button(
-                    f"{label} 다운로드",
-                    data=image,
-                    file_name=f"{draft_key}_image_{i + 1}.png",
-                    mime="image/png",
-                    key=f"dl_{draft_key}_{i}",
-                )
+    st.session_state["gemini_api_key"] = st.session_state.get("gemini_api_key_input", "").strip()
+    st.session_state["ignore_env_key"] = False
+    st.rerun()
 
 
 TABLE_SEP_CELL_RE = re.compile(r"^:?-{2,}:?$")
@@ -1048,9 +666,11 @@ def render_keyword_and_draft_panel(
         if not current_keyword:
             st.warning("먼저 타겟 키워드를 입력해주세요.")
         else:
-            run_draft_generation(
-                draft_key, lambda progress: generate_fn(current_keyword, progress), spinner_text
-            )
+            try:
+                with st.spinner(spinner_text):
+                    st.session_state[draft_key] = generate_fn(current_keyword)
+            except Exception as e:
+                st.error(str(e))
 
     if st.session_state[expansion_key]:
         render_keyword_suggestions(st.session_state[expansion_key], keyword_key, id_prefix)
@@ -1062,9 +682,11 @@ def render_keyword_and_draft_panel(
         st.session_state[trigger_key] = False
         current_keyword = st.session_state.get(keyword_key, "").strip()
         if current_keyword:
-            run_draft_generation(
-                draft_key, lambda progress: generate_fn(current_keyword, progress), spinner_text
-            )
+            try:
+                with st.spinner(spinner_text):
+                    st.session_state[draft_key] = generate_fn(current_keyword)
+            except Exception as e:
+                st.error(str(e))
 
     col1, col2 = st.columns([8.5, 1.5], gap="small")
     with col1:
@@ -1073,7 +695,7 @@ def render_keyword_and_draft_panel(
         st.button(
             "초안 지우기",
             key=f"clear_draft_{id_prefix}",
-            on_click=clear_draft,
+            on_click=clear_keyword,
             args=(draft_key,),
         )
 
@@ -1084,7 +706,6 @@ def render_keyword_and_draft_panel(
         height=800,
         wrap_lines=True,
     )
-    render_team_outputs(draft_key)
 
 
 def render_headline_list(headlines, tab_key):
@@ -1129,14 +750,13 @@ def render_headline_list(headlines, tab_key):
                     on_click=set_keyword_value,
                     args=(keyword_key, headline),
                 ):
-                    target_keyword = st.session_state.get(keyword_key, "")
-                    run_draft_generation(
-                        draft_key,
-                        lambda progress, h=headline, kw=target_keyword: generate_blog_post(
-                            h, target_keyword=kw, progress=progress
-                        ),
-                        "AI가 블로그 초안을 작성하고 있습니다...",
-                    )
+                    try:
+                        target_keyword = st.session_state.get(keyword_key, "")
+                        with st.spinner("AI가 블로그 초안을 작성하고 있습니다..."):
+                            result = generate_blog_post(headline, target_keyword=target_keyword)
+                        st.session_state[draft_key] = result
+                    except Exception as e:
+                        st.error(str(e))
             st.html('<hr class="headline-sep">')
 
     render_keyword_and_draft_panel(
@@ -1144,7 +764,7 @@ def render_headline_list(headlines, tab_key):
         keyword_key=keyword_key,
         expansion_key=expansion_key,
         draft_key=draft_key,
-        generate_fn=lambda kw, progress: generate_blog_post(kw, target_keyword=kw, progress=progress),
+        generate_fn=lambda kw: generate_blog_post(kw, target_keyword=kw),
         write_button_label="키워드로 글쓰기",
         spinner_text="AI가 블로그 초안을 작성하고 있습니다...",
         draft_heading="블로그 초안",
@@ -1205,70 +825,7 @@ GUIDELINE_TEXT = """
 - 객관적 원리·한의학적 접근·생활 관리법 중심의 차분한 정보 전달
 - 본문은 일상 관리법까지만 작성하고, AI가 마무리 인사말이나 '원장님의 한마디'를 자체 생성하지 않음
 - 글 맨 끝에 주소·주차 안내·홈페이지({homepage})·네이버 지도·전화번호가 담긴 **고정 푸터**를 시스템이 자동 첨부
-
-**[🤝 AI 드림팀 모드]** (사이드바에서 선택)
-- 앱이 지휘자가 되어 각 AI의 주특기대로 일을 나눠 맡김: **Gemini 리서치 → Claude 집필 → ChatGPT 검수 → (지적사항이 있으면) Claude 수정**
-- Gemini는 구글 검색으로 최신 팩트 브리핑을 만들고, 작가는 브리핑에 없는 수치·날짜를 지어내지 않음
-- ChatGPT 검수는 시스템이 실측한 본문 글자 수를 기준으로 분량·형식·과장 표현을 점검
-- 초안 아래 **🎨 ChatGPT로 이미지 생성** 버튼으로 원고의 영문 프롬프트를 실제 이미지로 만들 수 있음
-- 키가 없는 멤버는 자동으로 건너뜀 (Claude가 없으면 Gemini가 대신 집필)
 """.format(homepage=CLINIC_HOMEPAGE)
-
-
-DREAM_TEAM_ROLES = {
-    "gemini": ("🔎 리서처", "구글 검색으로 최신 팩트 수집 · 롱테일 키워드 확장"),
-    "claude": ("✍️ 메인 작가", "팩트 브리핑을 바탕으로 원고 집필 · 검수 의견 반영 수정"),
-    "openai": ("🧐 검수자 · 🎨 디자이너", "작성 규칙 위반 검수 · 이미지 프롬프트로 실제 이미지 생성"),
-}
-
-
-def render_api_key_section(provider):
-    label = PROVIDERS[provider]["label"]
-    if not get_api_key(provider):
-        st.text_input(f"{label} API 키", type="password", key=f"{provider}_api_key_input")
-        st.button("키 적용하기", key=f"apply_key_{provider}", on_click=apply_api_key, args=(provider,))
-    else:
-        st.caption(f"✅ {label} API 키가 설정되어 있습니다.")
-        st.button(
-            "API 키 변경 및 초기화",
-            key=f"reset_key_{provider}",
-            on_click=reset_api_key,
-            args=(provider,),
-        )
-
-
-def render_sidebar():
-    st.subheader("작성 모드")
-    st.radio(
-        "작성 모드",
-        [MODE_GEMINI, MODE_DREAM_TEAM],
-        key="writing_mode",
-        label_visibility="collapsed",
-    )
-
-    st.subheader("Gemini API 설정")
-    render_api_key_section("gemini")
-    if not get_api_key("gemini"):
-        st.caption("뉴스 키워드 확장과 기본 글쓰기에는 Gemini API 키가 필요합니다.")
-
-    if not is_dream_team_mode():
-        st.caption("💡 '🤝 AI 드림팀' 모드를 켜면 Claude와 ChatGPT까지 함께 일합니다.")
-        return
-
-    st.divider()
-    st.subheader("🤝 AI 드림팀 구성")
-    for provider, (role, duty) in DREAM_TEAM_ROLES.items():
-        ready = "🟢" if get_api_key(provider) else "⚪"
-        st.markdown(f"{ready} **{PROVIDERS[provider]['label']}** — {role}  \n<small>{duty}</small>", unsafe_allow_html=True)
-    st.caption(
-        "키가 없는 멤버는 건너뛰고, 작가(Claude)가 없으면 Gemini가 대신 집필합니다. "
-        "필요한 AI만 골라서 연결하면 됩니다."
-    )
-
-    st.subheader("Claude API 설정")
-    render_api_key_section("claude")
-    st.subheader("ChatGPT(OpenAI) API 설정")
-    render_api_key_section("openai")
 
 
 def render_guideline_panel():
@@ -1283,7 +840,16 @@ def main():
     st.title("실시간 주요 이슈 헤드라인")
 
     with st.sidebar:
-        render_sidebar()
+        st.subheader("Gemini API 설정")
+        if not get_gemini_api_key():
+            st.text_input(
+                "Gemini API 키", type="password", key="gemini_api_key_input"
+            )
+            st.button("키 적용하기", on_click=apply_api_key)
+            st.caption("블로그 글쓰기 기능을 쓰려면 Gemini API 키가 필요합니다.")
+        else:
+            st.caption("Gemini API 키가 설정되어 있습니다.")
+            st.button("API 키 변경 및 초기화", on_click=reset_api_key)
 
     if st.button("새로고침"):
         get_news_data.clear()
